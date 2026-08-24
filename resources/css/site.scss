@@ -1,0 +1,15 @@
+@import "bootstrap/scss/bootstrap";
+
+:root {
+    --site-body-bg: #f7f7f5;
+    --site-text: #1f2933;
+}
+
+body {
+    background: var(--site-body-bg);
+    color: var(--site-text);
+}
+
+.public-hero {
+    min-height: 60vh;
+}
