@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "fde0bd7c58c114414ae681deba28dac9",
+    "content-hash": "d6bb98d17460b2f055020f6e8daf924a",
     "packages": [
         {
             "name": "brick/math",
@@ -2542,10 +2542,16 @@
         {
             "name": "pcteckserv/cms-core",
             "version": "1.0.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/pcteckserv/cmspcteckserv-core.git",
+                "reference": "3054aef8922f102cb46c4d1850ae2f16b06a918b"
+            },
             "dist": {
-                "type": "path",
-                "url": "../cmspcteckserv-core",
-                "reference": "08d4b790dbca22986103aebb225beffdaec102ba"
+                "type": "zip",
+                "url": "https://api.github.com/repos/pcteckserv/cmspcteckserv-core/zipball/3054aef8922f102cb46c4d1850ae2f16b06a918b",
+                "reference": "3054aef8922f102cb46c4d1850ae2f16b06a918b",
+                "shasum": ""
             },
             "require": {
                 "illuminate/auth": "^13.0",
@@ -2570,10 +2576,11 @@
                 "proprietary"
             ],
             "description": "Núcleo administrativo reutilizável do CMS PCTECK.",
-            "transport-options": {
-                "symlink": true,
-                "relative": true
-            }
+            "support": {
+                "source": "https://github.com/pcteckserv/cmspcteckserv-core/tree/v1.0.0",
+                "issues": "https://github.com/pcteckserv/cmspcteckserv-core/issues"
+            },
+            "time": "2026-08-24T10:00:28+00:00"
         },
         {
             "name": "phpoption/phpoption",
