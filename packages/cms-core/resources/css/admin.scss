@@ -1,0 +1,29 @@
+@import "bootstrap/scss/bootstrap";
+
+:root {
+    --cms-admin-body-bg: #f8f9fa;
+    --cms-admin-text: #1f2933;
+}
+
+body {
+    background: var(--cms-admin-body-bg);
+    color: var(--cms-admin-text);
+}
+
+.admin-shell {
+    min-height: 100vh;
+}
+
+.admin-sidebar {
+    width: 16rem;
+}
+
+.cms-settings-form {
+    max-width: 76rem;
+}
+
+@media (max-width: 767.98px) {
+    .admin-sidebar {
+        width: 100%;
+    }
+}

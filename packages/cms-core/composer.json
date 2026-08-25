@@ -1,0 +1,25 @@
+{
+    "name": "pcteckserv/cms-core",
+    "version": "1.3.0",
+    "description": "Núcleo administrativo reutilizável do CMS PCTECK.",
+    "type": "library",
+    "license": "proprietary",
+    "autoload": {
+        "psr-4": {
+            "Pcteckserv\\CmsCore\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Pcteckserv\\CmsCore\\CmsCoreServiceProvider"
+            ]
+        }
+    },
+    "require": {
+        "php": "^8.3",
+        "illuminate/auth": "^13.0",
+        "illuminate/database": "^13.0",
+        "illuminate/support": "^13.0"
+    }
+}
