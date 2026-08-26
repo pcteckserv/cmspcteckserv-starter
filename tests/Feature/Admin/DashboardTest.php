@@ -25,6 +25,9 @@ class DashboardTest extends TestCase
             ->assertOk()
             ->assertViewIs('cms-core::admin.dashboard')
             ->assertSee('Painel de Administração')
+            ->assertSee('Contactos PCTECKSERV')
+            ->assertSee('geral@pcteckserv.com')
+            ->assertSee('+351 924 015 505')
             ->assertSee($user->email);
     }
 }

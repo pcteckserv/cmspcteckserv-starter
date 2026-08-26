@@ -49,5 +49,6 @@
             </main>
         </div>
     </div>
+    @include('cms-core::admin.partials.help-widget')
 </body>
 </html>

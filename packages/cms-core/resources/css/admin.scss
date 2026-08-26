@@ -22,8 +22,40 @@ body {
     max-width: 76rem;
 }
 
+.cms-help-widget {
+    bottom: 1.5rem;
+    position: fixed;
+    right: 1.5rem;
+    z-index: 1080;
+}
+
+.cms-help-button {
+    border-radius: 999px;
+    font-weight: 600;
+    min-height: 3rem;
+    min-width: 5.5rem;
+}
+
+.cms-help-panel {
+    background: #fff;
+    border: 1px solid rgba(15, 23, 42, .12);
+    border-radius: .5rem;
+    bottom: 4rem;
+    color: var(--cms-admin-text);
+    max-width: min(22rem, calc(100vw - 2rem));
+    padding: 1.25rem;
+    position: absolute;
+    right: 0;
+    width: 22rem;
+}
+
 @media (max-width: 767.98px) {
     .admin-sidebar {
         width: 100%;
+    }
+
+    .cms-help-widget {
+        bottom: 1rem;
+        right: 1rem;
     }
 }
