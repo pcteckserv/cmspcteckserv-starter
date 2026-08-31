@@ -34,13 +34,6 @@
     },
     "repositories": [
         {
-            "type": "path",
-            "url": "packages/cms-core",
-            "options": {
-                "symlink": true
-            }
-        },
-        {
             "type": "vcs",
             "url": "https://github.com/pcteckserv/cmspcteckserv-core.git"
         }

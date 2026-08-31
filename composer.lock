@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "818e17626edda3183021e8d63dfce111",
+    "content-hash": "d6bb98d17460b2f055020f6e8daf924a",
     "packages": [
         {
             "name": "brick/math",
@@ -2541,15 +2541,28 @@
         },
         {
             "name": "pcteckserv/cms-core",
-            "version": "1.3.0",
+            "version": "v1.6.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/pcteckserv/cmspcteckserv-core.git",
+                "reference": "6b4baace5e6379d5c139296c558747ef20d05bf9"
+            },
             "dist": {
-                "type": "path",
-                "url": "packages/cms-core",
-                "reference": "79d13b7b71284068e4e7598934a9b1fe75c8af2f"
+                "type": "zip",
+                "url": "https://api.github.com/repos/pcteckserv/cmspcteckserv-core/zipball/6b4baace5e6379d5c139296c558747ef20d05bf9",
+                "reference": "6b4baace5e6379d5c139296c558747ef20d05bf9",
+                "shasum": ""
             },
             "require": {
                 "illuminate/auth": "^13.0",
+                "illuminate/cache": "^13.0",
+                "illuminate/console": "^13.0",
+                "illuminate/contracts": "^13.0",
                 "illuminate/database": "^13.0",
+                "illuminate/filesystem": "^13.0",
+                "illuminate/http": "^13.0",
+                "illuminate/mail": "^13.0",
+                "illuminate/queue": "^13.0",
                 "illuminate/support": "^13.0",
                 "php": "^8.3"
             },
@@ -2570,10 +2583,11 @@
                 "proprietary"
             ],
             "description": "Núcleo administrativo reutilizável do CMS PCTECK.",
-            "transport-options": {
-                "symlink": true,
-                "relative": true
-            }
+            "support": {
+                "source": "https://github.com/pcteckserv/cmspcteckserv-core/tree/v1.6.1",
+                "issues": "https://github.com/pcteckserv/cmspcteckserv-core/issues"
+            },
+            "time": "2026-08-31T13:44:19+00:00"
         },
         {
             "name": "phpoption/phpoption",
