@@ -2541,16 +2541,16 @@
         },
         {
             "name": "pcteckserv/cms-core",
-            "version": "v1.7.0",
+            "version": "v1.7.6",
             "source": {
                 "type": "git",
                 "url": "https://github.com/pcteckserv/cmspcteckserv-core.git",
-                "reference": "a3a126fb786cc1aaa6080a28dba818cd6ea811ba"
+                "reference": "81a1be5673f1f28eec388ae5232f565e0053181e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/pcteckserv/cmspcteckserv-core/zipball/a3a126fb786cc1aaa6080a28dba818cd6ea811ba",
-                "reference": "a3a126fb786cc1aaa6080a28dba818cd6ea811ba",
+                "url": "https://api.github.com/repos/pcteckserv/cmspcteckserv-core/zipball/81a1be5673f1f28eec388ae5232f565e0053181e",
+                "reference": "81a1be5673f1f28eec388ae5232f565e0053181e",
                 "shasum": ""
             },
             "require": {
@@ -2584,10 +2584,10 @@
             ],
             "description": "Núcleo administrativo reutilizável do CMS PCTECK.",
             "support": {
-                "source": "https://github.com/pcteckserv/cmspcteckserv-core/tree/v1.7.0",
+                "source": "https://github.com/pcteckserv/cmspcteckserv-core/tree/v1.7.6",
                 "issues": "https://github.com/pcteckserv/cmspcteckserv-core/issues"
             },
-            "time": "2026-08-31T14:18:24+00:00"
+            "time": "2026-08-31T15:12:14+00:00"
         },
         {
             "name": "phpoption/phpoption",
