@@ -19,7 +19,9 @@
 /public/hot
 /public/storage
 /storage/*.key
+/storage/app/private/deploy/
 /storage/pail
+/bootstrap/public_path.php
 /vendor
 _ide_helper.php
 Homestead.json

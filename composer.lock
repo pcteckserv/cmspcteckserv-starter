@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "890f6865e3f2aadeb4a0f52cf068c861",
+    "content-hash": "1264254367bd13030d986e05d393cb01",
     "packages": [
         {
             "name": "brick/math",
@@ -2540,17 +2540,63 @@
             "time": "2026-02-16T23:10:27+00:00"
         },
         {
+            "name": "pcteckserv/cms-contact-forms",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "C:/Users/PCTECK Redes Sociais/Desktop/cmspcteckserv/cmspcteckserv-starter/storage/framework/cache/cms-plugin-repository/cmspcteckserv-formularios-de-contacto",
+                "reference": "7457fa57150b5a8a59da6cd82ba2010702897f35"
+            },
+            "require": {
+                "illuminate/contracts": "^13.0",
+                "illuminate/database": "^13.0",
+                "illuminate/routing": "^13.0",
+                "illuminate/support": "^13.0",
+                "pcteckserv/cms-core": "^2.0",
+                "php": "^8.3"
+            },
+            "require-dev": {
+                "orchestra/testbench": "^11.0",
+                "phpunit/phpunit": "^12.0"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Pcteckserv\\CmsContactForms\\CmsContactFormsServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Pcteckserv\\CmsContactForms\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Pcteckserv\\CmsContactForms\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "proprietary"
+            ],
+            "description": "Plugin de formulários de contacto para o CMS PCTECKSERV.",
+            "transport-options": {
+                "relative": false
+            }
+        },
+        {
             "name": "pcteckserv/cms-core",
-            "version": "v2.0.6",
+            "version": "v2.3.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/pcteckserv/cmspcteckserv-core.git",
-                "reference": "25f093cc5d606c46445184c8f8b8dcc297c68f85"
+                "reference": "7f8c846be66a589008d9e2f0509531b13bf16a4b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/pcteckserv/cmspcteckserv-core/zipball/25f093cc5d606c46445184c8f8b8dcc297c68f85",
-                "reference": "25f093cc5d606c46445184c8f8b8dcc297c68f85",
+                "url": "https://api.github.com/repos/pcteckserv/cmspcteckserv-core/zipball/7f8c846be66a589008d9e2f0509531b13bf16a4b",
+                "reference": "7f8c846be66a589008d9e2f0509531b13bf16a4b",
                 "shasum": ""
             },
             "require": {
@@ -2584,10 +2630,10 @@
             ],
             "description": "Núcleo administrativo reutilizável do CMS PCTECK.",
             "support": {
-                "source": "https://github.com/pcteckserv/cmspcteckserv-core/tree/v2.0.6",
+                "source": "https://github.com/pcteckserv/cmspcteckserv-core/tree/v2.3.0",
                 "issues": "https://github.com/pcteckserv/cmspcteckserv-core/issues"
             },
-            "time": "2026-09-03T13:39:20+00:00"
+            "time": "2026-09-18T15:00:24+00:00"
         },
         {
             "name": "phpoption/phpoption",
@@ -8357,7 +8403,9 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {},
+    "stability-flags": {
+        "pcteckserv/cms-contact-forms": 20
+    },
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {

@@ -9,6 +9,7 @@
         "php": "^8.3",
         "laravel/framework": "^13.17",
         "laravel/tinker": "^3.0",
+        "pcteckserv/cms-contact-forms": "*@dev",
         "pcteckserv/cms-core": "2.*"
     },
     "require-dev": {
@@ -33,6 +34,11 @@
         }
     },
     "repositories": [
+        {
+            "name": "cms-plugin-contact-forms",
+            "type": "path",
+            "url": "C:\\Users\\PCTECK Redes Sociais\\Desktop\\cmspcteckserv\\cmspcteckserv-starter\\storage\\framework/cache/cms-plugin-repository\\cmspcteckserv-formularios-de-contacto"
+        },
         {
             "type": "vcs",
             "url": "https://github.com/pcteckserv/cmspcteckserv-core.git"

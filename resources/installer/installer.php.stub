@@ -1,0 +1,495 @@
+<?php
+
+declare(strict_types=1);
+
+$archiveName = '{{ application_archive_name }}';
+$publicPath = __DIR__;
+$defaultAppPath = dirname($publicPath).DIRECTORY_SEPARATOR.'app';
+$lockFile = $publicPath.DIRECTORY_SEPARATOR.'.cms_installed';
+$errors = [];
+$messages = [];
+
+if (is_file($lockFile)) {
+    http_response_code(403);
+    echo 'O instalador ja foi executado. Remova o ficheiro .cms_installed apenas se tiver a certeza de que pretende repetir a instalacao.';
+    exit;
+}
+
+function installer_value(string $key, ?string $default = null): string
+{
+    return trim((string) ($_POST[$key] ?? $default ?? ''));
+}
+
+function installer_html(string $value): string
+{
+    return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+}
+
+function installer_rrmdir(string $path): void
+{
+    if (! is_dir($path)) {
+        return;
+    }
+
+    $items = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+
+    foreach ($items as $item) {
+        $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
+    }
+
+    rmdir($path);
+}
+
+function installer_copy_public(string $source, string $destination): void
+{
+    $items = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($source, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach ($items as $item) {
+        $target = $destination.DIRECTORY_SEPARATOR.$items->getSubPathName();
+
+        if ($item->isDir()) {
+            if (! is_dir($target)) {
+                mkdir($target, 0755, true);
+            }
+
+            continue;
+        }
+
+        copy($item->getPathname(), $target);
+    }
+}
+
+function installer_env(array $values): string
+{
+    $lines = [];
+
+    foreach ($values as $key => $value) {
+        if (is_bool($value)) {
+            $lines[] = $key.'='.($value ? 'true' : 'false');
+
+            continue;
+        }
+
+        $escaped = str_replace(
+            ['\\', '"', '$', "\r", "\n"],
+            ['\\\\', '\\"', '\\$', '\\r', '\\n'],
+            (string) $value,
+        );
+        $lines[] = $key.'="'.$escaped.'"';
+    }
+
+    return implode(PHP_EOL, $lines).PHP_EOL;
+}
+
+function installer_random_key(): string
+{
+    return 'base64:'.base64_encode(random_bytes(32));
+}
+
+function installer_prepare_writable_directories(string $appPath): void
+{
+    $directories = [
+        'bootstrap/cache',
+        'storage/framework/cache',
+        'storage/framework/sessions',
+        'storage/framework/testing',
+        'storage/framework/views',
+        'storage/logs',
+    ];
+
+    foreach ($directories as $directory) {
+        $path = $appPath.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $directory);
+
+        if (! is_dir($path) && ! mkdir($path, 0775, true) && ! is_dir($path)) {
+            throw new RuntimeException('Nao foi possivel criar a pasta '.$directory.'.');
+        }
+
+        @chmod($path, 0775);
+
+        if (! is_writable($path)) {
+            throw new RuntimeException('A pasta '.$directory.' tem de ter permissoes de escrita.');
+        }
+    }
+}
+
+function installer_remove_deployment_files(string $archivePath, string $installerPath): array
+{
+    $notRemoved = [];
+
+    foreach ([$archivePath, $installerPath] as $path) {
+        if (is_file($path) && ! @unlink($path)) {
+            $notRemoved[] = basename($path);
+        }
+    }
+
+    return $notRemoved;
+}
+
+function installer_run_artisan(string $appPath, array $arguments, array $environmentOverrides = []): string
+{
+    if (! function_exists('proc_open')) {
+        throw new RuntimeException('A funcao proc_open esta desativada. Execute as migrations manualmente no painel do alojamento, se existir essa opcao.');
+    }
+
+    $command = array_merge([PHP_BINARY, $appPath.DIRECTORY_SEPARATOR.'artisan'], $arguments);
+    $descriptorSpec = [
+        0 => ['pipe', 'r'],
+        1 => ['pipe', 'w'],
+        2 => ['pipe', 'w'],
+    ];
+
+    $environment = getenv();
+    $environment = is_array($environment) ? array_merge($environment, $environmentOverrides) : $environmentOverrides;
+    $process = proc_open($command, $descriptorSpec, $pipes, $appPath, $environment);
+
+    if (! is_resource($process)) {
+        throw new RuntimeException('Nao foi possivel iniciar o processo Artisan.');
+    }
+
+    fclose($pipes[0]);
+    $output = stream_get_contents($pipes[1]);
+    $errorOutput = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+
+    $status = proc_close($process);
+
+    if ($status !== 0) {
+        throw new RuntimeException(trim($errorOutput) ?: trim($output) ?: 'O comando Artisan falhou.');
+    }
+
+    return trim($output);
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $appPath = rtrim(installer_value('app_path', $defaultAppPath), DIRECTORY_SEPARATOR.'/\\');
+    $appUrl = installer_value('app_url');
+    $appName = installer_value('app_name', 'CMS PCTECKSERV');
+    $dbHost = installer_value('db_host', '127.0.0.1');
+    $dbPort = installer_value('db_port', '3306');
+    $dbDatabase = installer_value('db_database');
+    $dbUsername = installer_value('db_username');
+    $dbPassword = installer_value('db_password');
+    $githubToken = (string) ($_POST['cms_github_token'] ?? '');
+    $adminName = installer_value('admin_name', 'Administrador');
+    $adminEmail = installer_value('admin_email');
+    $adminPassword = (string) ($_POST['admin_password'] ?? '');
+    $adminPasswordConfirmation = (string) ($_POST['admin_password_confirmation'] ?? '');
+    $resetDatabase = installer_value('reset_database') === '1';
+
+    foreach ([
+        'URL da aplicacao' => $appUrl,
+        'base de dados' => $dbDatabase,
+        'utilizador da base de dados' => $dbUsername,
+        'pasta da aplicacao' => $appPath,
+        'token GitHub para atualizacoes' => $githubToken,
+        'nome do superadministrador' => $adminName,
+        'email do superadministrador' => $adminEmail,
+    ] as $label => $value) {
+        if ($value === '') {
+            $errors[] = 'O campo '.$label.' e obrigatorio.';
+        }
+    }
+
+    if (filter_var($appUrl, FILTER_VALIDATE_URL) === false || ! in_array(parse_url($appUrl, PHP_URL_SCHEME), ['http', 'https'], true)) {
+        $errors[] = 'O URL da aplicacao tem de ser um endereco HTTP ou HTTPS valido.';
+    }
+
+    if (filter_var($adminEmail, FILTER_VALIDATE_EMAIL) === false || strlen($adminEmail) > 255) {
+        $errors[] = 'O email do superadministrador nao e valido.';
+    }
+
+    if (strlen($adminName) > 255) {
+        $errors[] = 'O nome do superadministrador nao pode exceder 255 caracteres.';
+    }
+
+    if (strlen($githubToken) > 255) {
+        $errors[] = 'O token GitHub nao pode exceder 255 caracteres.';
+    }
+
+    if (strlen($adminPassword) < 12) {
+        $errors[] = 'A palavra-passe do superadministrador tem de ter pelo menos 12 caracteres.';
+    }
+
+    if ($adminPassword !== $adminPasswordConfirmation) {
+        $errors[] = 'A confirmacao da palavra-passe do superadministrador nao coincide.';
+    }
+
+    foreach ([$appName, $appUrl, $dbHost, $dbPort, $dbDatabase, $dbUsername, $dbPassword, $githubToken, $adminName, $adminEmail] as $envValue) {
+        if (str_contains($envValue, "\r") || str_contains($envValue, "\n")) {
+            $errors[] = 'Os dados de configuracao nao podem conter quebras de linha.';
+            break;
+        }
+    }
+
+    if (! extension_loaded('zip')) {
+        $errors[] = 'A extensao PHP ZipArchive nao esta disponivel.';
+    }
+
+    if (! is_file($publicPath.DIRECTORY_SEPARATOR.$archiveName)) {
+        $errors[] = 'O ficheiro '.$archiveName.' nao foi encontrado nesta pasta.';
+    }
+
+    if ($errors === []) {
+        $temporaryPath = $publicPath.DIRECTORY_SEPARATOR.'installer_tmp_'.bin2hex(random_bytes(4));
+
+        try {
+            mkdir($temporaryPath, 0755, true);
+
+            $zip = new ZipArchive();
+            if ($zip->open($publicPath.DIRECTORY_SEPARATOR.$archiveName) !== true) {
+                throw new RuntimeException('Nao foi possivel abrir o pacote da aplicacao.');
+            }
+
+            $zip->extractTo($temporaryPath);
+            $zip->close();
+
+            if (! is_dir($appPath)) {
+                mkdir($appPath, 0755, true);
+            }
+
+            $sourcePublic = $temporaryPath.DIRECTORY_SEPARATOR.'public';
+            if (! is_dir($sourcePublic)) {
+                throw new RuntimeException('O pacote nao contem a pasta public.');
+            }
+
+            installer_copy_public($sourcePublic, $publicPath);
+
+            $viteHotFile = $publicPath.DIRECTORY_SEPARATOR.'hot';
+            if (is_file($viteHotFile) && ! unlink($viteHotFile)) {
+                throw new RuntimeException('Nao foi possivel remover o ficheiro temporario do Vite em public/hot.');
+            }
+
+            $items = new DirectoryIterator($temporaryPath);
+            foreach ($items as $item) {
+                if ($item->isDot() || $item->getFilename() === 'public') {
+                    continue;
+                }
+
+                $target = $appPath.DIRECTORY_SEPARATOR.$item->getFilename();
+
+                if ($item->isDir()) {
+                    if (is_dir($target)) {
+                        installer_rrmdir($target);
+                    }
+
+                    rename($item->getPathname(), $target);
+                    continue;
+                }
+
+                if (is_file($target)) {
+                    unlink($target);
+                }
+
+                rename($item->getPathname(), $target);
+            }
+
+            installer_prepare_writable_directories($appPath);
+
+            $publicPathConfig = $appPath.DIRECTORY_SEPARATOR.'bootstrap'.DIRECTORY_SEPARATOR.'public_path.php';
+            $publicPathConfigContents = "<?php\n\nreturn ".var_export($publicPath, true).";\n";
+
+            if (file_put_contents($publicPathConfig, $publicPathConfigContents) === false) {
+                throw new RuntimeException('Nao foi possivel configurar a pasta publica da aplicacao.');
+            }
+
+            $relativeAppPath = str_replace('\\', '/', $appPath);
+            $indexPath = $publicPath.DIRECTORY_SEPARATOR.'index.php';
+            $index = file_get_contents($indexPath);
+            $index = preg_replace(
+                "#__DIR__\\s*\\.\\s*'/\\.\\./(storage|vendor|bootstrap)/#",
+                "'".$relativeAppPath."/$1/",
+                $index
+            );
+            file_put_contents($indexPath, $index);
+
+            $env = installer_env([
+                'APP_NAME' => $appName,
+                'APP_ENV' => 'production',
+                'APP_KEY' => installer_random_key(),
+                'APP_DEBUG' => false,
+                'APP_URL' => $appUrl,
+                'LOG_CHANNEL' => 'stack',
+                'LOG_LEVEL' => 'error',
+                'DB_CONNECTION' => 'mysql',
+                'DB_HOST' => $dbHost,
+                'DB_PORT' => $dbPort,
+                'DB_DATABASE' => $dbDatabase,
+                'DB_USERNAME' => $dbUsername,
+                'DB_PASSWORD' => $dbPassword,
+                'CMS_GITHUB_TOKEN' => $githubToken,
+                'CACHE_STORE' => 'file',
+                'SESSION_DRIVER' => 'file',
+                'QUEUE_CONNECTION' => 'sync',
+                'MAIL_MAILER' => 'log',
+            ]);
+
+            file_put_contents($appPath.DIRECTORY_SEPARATOR.'.env', $env);
+
+            $artisan = $appPath.DIRECTORY_SEPARATOR.'artisan';
+            if (is_file($artisan)) {
+                $migrationArguments = $resetDatabase
+                    ? ['migrate:fresh', '--force']
+                    : ['migrate', '--force'];
+                $artisanOutput = installer_run_artisan($appPath, $migrationArguments);
+                $messages[] = $artisanOutput !== '' ? $artisanOutput : 'Migrations executadas.';
+
+                $adminOutput = installer_run_artisan(
+                    $appPath,
+                    ['db:seed', '--class=Pcteckserv\\CmsCore\\Database\\Seeders\\AdminUserSeeder', '--force'],
+                    [
+                        'ADMIN_USER_NAME' => $adminName,
+                        'ADMIN_USER_EMAIL' => $adminEmail,
+                        'ADMIN_USER_PASSWORD' => $adminPassword,
+                    ],
+                );
+                $messages[] = $adminOutput !== '' ? $adminOutput : 'Superadministrador criado.';
+
+                $optimizeOutput = installer_run_artisan($appPath, ['optimize']);
+                $messages[] = $optimizeOutput !== '' ? $optimizeOutput : 'Aplicacao otimizada.';
+            }
+
+            installer_rrmdir($temporaryPath);
+            file_put_contents($lockFile, date(DATE_ATOM));
+            $notRemoved = installer_remove_deployment_files(
+                $publicPath.DIRECTORY_SEPARATOR.$archiveName,
+                __FILE__,
+            );
+
+            if ($notRemoved === []) {
+                $messages[] = 'Instalacao concluida. Os ficheiros de instalacao foram removidos automaticamente.';
+            } else {
+                $messages[] = 'Instalacao concluida. Remova manualmente por seguranca: '.implode(', ', $notRemoved).'.';
+            }
+        } catch (Throwable $exception) {
+            if (isset($temporaryPath)) {
+                installer_rrmdir($temporaryPath);
+            }
+
+            $errors[] = $exception->getMessage();
+        }
+    }
+}
+
+?>
+<!doctype html>
+<html lang="pt">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Instalador CMS PCTECKSERV</title>
+    <style>
+        body { font-family: system-ui, sans-serif; margin: 2rem; color: #18212f; line-height: 1.45; }
+        form { max-width: 760px; display: grid; gap: 1rem; }
+        label { display: grid; gap: .35rem; font-weight: 700; }
+        input { padding: .7rem; border: 1px solid #bac3cf; border-radius: 6px; font: inherit; }
+        .danger-option { grid-template-columns: auto 1fr; align-items: start; padding: 1rem; border: 1px solid #f2a7a7; border-radius: 6px; background: #fff5f5; }
+        .danger-option input { margin-top: .25rem; }
+        .danger-option span { display: grid; gap: .25rem; }
+        button { width: fit-content; padding: .8rem 1.1rem; border: 0; border-radius: 6px; background: #166534; color: white; font-weight: 700; cursor: pointer; }
+        .alert { max-width: 760px; padding: 1rem; border-radius: 6px; margin-bottom: 1rem; }
+        .error { background: #fee2e2; color: #7f1d1d; }
+        .success { background: #dcfce7; color: #14532d; white-space: pre-wrap; }
+        small { color: #526071; font-weight: 400; }
+    </style>
+</head>
+<body>
+    <h1>Instalador CMS PCTECKSERV</h1>
+
+    <?php foreach ($errors as $error): ?>
+        <div class="alert error"><?= installer_html($error) ?></div>
+    <?php endforeach; ?>
+
+    <?php foreach ($messages as $message): ?>
+        <div class="alert success"><?= installer_html($message) ?></div>
+    <?php endforeach; ?>
+
+    <?php if ($messages === []): ?>
+        <form method="post">
+            <label>
+                Nome da aplicacao
+                <input name="app_name" value="<?= installer_html(installer_value('app_name', 'CMS PCTECKSERV')) ?>">
+            </label>
+
+            <label>
+                URL da aplicacao
+                <input name="app_url" placeholder="https://www.exemplo.pt" value="<?= installer_html(installer_value('app_url')) ?>" required>
+            </label>
+
+            <label>
+                Pasta privada da aplicacao
+                <input name="app_path" value="<?= installer_html(installer_value('app_path', $defaultAppPath)) ?>" required>
+                <small>Idealmente fora do public_html. O instalador coloca apenas a pasta public no local atual.</small>
+            </label>
+
+            <label>
+                Servidor da base de dados
+                <input name="db_host" value="<?= installer_html(installer_value('db_host', '127.0.0.1')) ?>" required>
+            </label>
+
+            <label>
+                Porta da base de dados
+                <input name="db_port" value="<?= installer_html(installer_value('db_port', '3306')) ?>" required>
+            </label>
+
+            <label>
+                Nome da base de dados
+                <input name="db_database" value="<?= installer_html(installer_value('db_database')) ?>" required>
+            </label>
+
+            <label>
+                Utilizador da base de dados
+                <input name="db_username" value="<?= installer_html(installer_value('db_username')) ?>" required>
+            </label>
+
+            <label>
+                Palavra-passe da base de dados
+                <input name="db_password" type="password" value="<?= installer_html(installer_value('db_password')) ?>">
+            </label>
+
+            <label>
+                Token GitHub para atualizacoes
+                <input name="cms_github_token" type="password" maxlength="255" autocomplete="off" required>
+                <small>Token utilizado para consultar e instalar atualizacoes privadas do CMS.</small>
+            </label>
+
+            <label>
+                Nome do superadministrador
+                <input name="admin_name" maxlength="255" value="<?= installer_html(installer_value('admin_name', 'Administrador')) ?>" required>
+            </label>
+
+            <label>
+                Email do superadministrador
+                <input name="admin_email" type="email" maxlength="255" value="<?= installer_html(installer_value('admin_email')) ?>" required>
+            </label>
+
+            <label>
+                Palavra-passe do superadministrador
+                <input name="admin_password" type="password" minlength="12" autocomplete="new-password" required>
+                <small>Utilize pelo menos 12 caracteres.</small>
+            </label>
+
+            <label>
+                Confirmar palavra-passe do superadministrador
+                <input name="admin_password_confirmation" type="password" minlength="12" autocomplete="new-password" required>
+            </label>
+
+            <label class="danger-option">
+                <input name="reset_database" type="checkbox" value="1" <?= installer_value('reset_database') === '1' ? 'checked' : '' ?>>
+                <span>
+                    Limpar a base de dados antes de instalar
+                    <small>Elimina todas as tabelas existentes. Utilize apenas numa instalacao nova ou para recuperar uma instalacao incompleta.</small>
+                </span>
+            </label>
+
+            <button type="submit">Instalar</button>
+        </form>
+    <?php endif; ?>
+</body>
+</html>
