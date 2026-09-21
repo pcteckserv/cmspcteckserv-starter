@@ -35,6 +35,16 @@
     },
     "repositories": [
         {
+            "type": "path",
+            "url": "../cmspcteckserv-core",
+            "options": {
+                "symlink": true,
+                "versions": {
+                    "pcteckserv/cms-core": "2.3.3"
+                }
+            }
+        },
+        {
             "name": "cms-plugin-contact-forms",
             "type": "path",
             "url": "C:\\Users\\PCTECK Redes Sociais\\Desktop\\cmspcteckserv\\cmspcteckserv-starter\\storage\\framework/cache/cms-plugin-repository\\cmspcteckserv-formularios-de-contacto"

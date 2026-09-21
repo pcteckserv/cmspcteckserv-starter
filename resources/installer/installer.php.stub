@@ -177,6 +177,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $dbUsername = installer_value('db_username');
     $dbPassword = installer_value('db_password');
     $githubToken = (string) ($_POST['cms_github_token'] ?? '');
+    $starterRepository = installer_value('starter_github_repository');
+    $starterGithubToken = (string) ($_POST['starter_github_token'] ?? '');
     $adminName = installer_value('admin_name', 'Administrador');
     $adminEmail = installer_value('admin_email');
     $adminPassword = (string) ($_POST['admin_password'] ?? '');
@@ -189,6 +191,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'utilizador da base de dados' => $dbUsername,
         'pasta da aplicacao' => $appPath,
         'token GitHub para atualizacoes' => $githubToken,
+        'repositório GitHub do Starter' => $starterRepository,
+        'token GitHub do Starter' => $starterGithubToken,
         'nome do superadministrador' => $adminName,
         'email do superadministrador' => $adminEmail,
     ] as $label => $value) {
@@ -213,6 +217,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'O token GitHub nao pode exceder 255 caracteres.';
     }
 
+    if (strlen($starterRepository) > 255) {
+        $errors[] = 'O repositório GitHub do Starter nao pode exceder 255 caracteres.';
+    }
+
+    if (! str_starts_with($starterRepository, 'https://github.com/') && ! preg_match('/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/', $starterRepository)) {
+        $errors[] = 'O repositório GitHub do Starter tem de ser um URL https://github.com/... ou owner/repo.';
+    }
+
+    if (strlen($starterGithubToken) > 255) {
+        $errors[] = 'O token GitHub do Starter nao pode exceder 255 caracteres.';
+    }
+
     if (strlen($adminPassword) < 12) {
         $errors[] = 'A palavra-passe do superadministrador tem de ter pelo menos 12 caracteres.';
     }
@@ -221,7 +237,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'A confirmacao da palavra-passe do superadministrador nao coincide.';
     }
 
-    foreach ([$appName, $appUrl, $dbHost, $dbPort, $dbDatabase, $dbUsername, $dbPassword, $githubToken, $adminName, $adminEmail] as $envValue) {
+    foreach ([$appName, $appUrl, $dbHost, $dbPort, $dbDatabase, $dbUsername, $dbPassword, $githubToken, $starterRepository, $starterGithubToken, $adminName, $adminEmail] as $envValue) {
         if (str_contains($envValue, "\r") || str_contains($envValue, "\n")) {
             $errors[] = 'Os dados de configuracao nao podem conter quebras de linha.';
             break;
@@ -324,6 +340,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'DB_USERNAME' => $dbUsername,
                 'DB_PASSWORD' => $dbPassword,
                 'CMS_GITHUB_TOKEN' => $githubToken,
+                'STARTER_GITHUB_REPOSITORY' => str_starts_with($starterRepository, 'https://github.com/')
+                    ? $starterRepository
+                    : 'https://github.com/'.$starterRepository.'.git',
+                'STARTER_GITHUB_TOKEN' => $starterGithubToken,
                 'CACHE_STORE' => 'file',
                 'SESSION_DRIVER' => 'file',
                 'QUEUE_CONNECTION' => 'sync',
@@ -457,6 +477,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 Token GitHub para atualizacoes
                 <input name="cms_github_token" type="password" maxlength="255" autocomplete="off" required>
                 <small>Token utilizado para consultar e instalar atualizacoes privadas do CMS.</small>
+            </label>
+
+            <label>
+                Repositório GitHub do Starter
+                <input name="starter_github_repository" maxlength="255" placeholder="pcteckserv/site-exemplo" value="<?= installer_html(installer_value('starter_github_repository')) ?>" required>
+                <small>Repositório usado pelo painel de atualizacoes para sincronizar rotas, views e personalizacoes do site.</small>
+            </label>
+
+            <label>
+                Token GitHub do Starter
+                <input name="starter_github_token" type="password" maxlength="255" autocomplete="off" required>
+                <small>Token utilizado apenas para consultar e clonar o repositório do Starter.</small>
             </label>
 
             <label>

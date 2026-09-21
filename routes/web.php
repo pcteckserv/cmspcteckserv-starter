@@ -7,4 +7,6 @@ Route::get('/', function () {
     return view('public.home');
 })->name('home');
 
-Route::get('/compilar', DeploymentPackageController::class)->name('deploy.compile');
+Route::get('/compilar', DeploymentPackageController::class)
+    ->middleware('auth')
+    ->name('deploy.compile');

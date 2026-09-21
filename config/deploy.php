@@ -1,13 +1,12 @@
 <?php
 
 return [
-    'enabled' => env('DEPLOY_COMPILER_ENABLED', env('APP_ENV') === 'local'),
-    'token' => env('DEPLOY_COMPILER_TOKEN'),
     'output_disk' => 'local',
     'output_directory' => 'deploy',
     'package_name' => 'cmspcteckserv-deploy.zip',
     'application_archive_name' => 'application.zip',
     'installer_name' => 'installer.php',
+    'composer_phar' => env('DEPLOY_COMPOSER_PHAR'),
     'local_package_overlays' => [
         'pcteckserv/cms-core' => '../cmspcteckserv-core',
     ],

@@ -10,20 +10,13 @@ class DeploymentPackageController extends Controller
 {
     public function __invoke(Request $request, DeploymentPackageBuilder $builder): Response
     {
-        abort_unless((bool) config('deploy.enabled'), 404);
-
-        $token = config('deploy.token');
-
-        if (is_string($token) && $token !== '') {
-            abort_unless(hash_equals($token, (string) $request->query('token')), 403);
-        } else {
-            abort_unless(app()->environment('local'), 403);
-        }
+        abort_unless($request->user()?->isCmsSuperAdmin(), 403);
 
         $package = $builder->build();
 
-        return response()->view('deployment.compiled', [
-            'package' => $package,
-        ]);
+        return response()->download(
+            $package['path'],
+            basename($package['path']),
+        );
     }
 }

@@ -13,6 +13,9 @@ class HomepageTest extends TestCase
         $response
             ->assertOk()
             ->assertViewIs('public.home')
-            ->assertSee('CMS preparado para crescer');
+            ->assertSee('Conteúdos bem organizados')
+            ->assertSee('O que é um CMS?')
+            ->assertSee('sistema de gestão de conteúdos')
+            ->assertSee('PCTECKSERV', escape: false);
     }
 }

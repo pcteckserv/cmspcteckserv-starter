@@ -107,9 +107,22 @@ class DeploymentPackageBuilderTest extends TestCase
         $builder = new DeploymentPackageBuilder(new Filesystem());
         $copies = (new ReflectionClass($builder))->getMethod('pathRepositoryCopies')->invoke($builder);
         $core = collect($copies)->firstWhere('destination', 'vendor/pcteckserv/cms-core');
+        $pluginSource = collect($copies)->firstWhere('destination', 'packages/pcteckserv/cms-contact-forms');
 
         $this->assertNotNull($core);
         $this->assertSame(realpath(base_path('../cmspcteckserv-core')), $core['source']);
+        $this->assertNotNull($pluginSource);
+        $this->assertDirectoryExists($pluginSource['source']);
+    }
+
+    public function test_localiza_um_composer_phar_valido_para_o_deploy(): void
+    {
+        $builder = new DeploymentPackageBuilder(new Filesystem());
+        $composerPhar = (new ReflectionClass($builder))->getMethod('composerPharPath')->invoke($builder);
+
+        $this->assertNotNull($composerPhar);
+        $this->assertFileExists($composerPhar);
+        $this->assertSame('phar', pathinfo($composerPhar, PATHINFO_EXTENSION));
     }
 
     public function test_installer_remove_os_ficheiros_de_deploy_apos_sucesso(): void
@@ -191,5 +204,18 @@ class DeploymentPackageBuilderTest extends TestCase
         $this->assertStringContainsString("'CMS_GITHUB_TOKEN' => \$githubToken", $installer);
         $this->assertStringContainsString("\$_POST['cms_github_token'] ?? ''", $installer);
         $this->assertStringNotContainsString('github_pat_', $installer);
+    }
+
+    public function test_installer_pede_e_grava_dados_do_repositorio_starter(): void
+    {
+        $installer = file_get_contents(resource_path('installer/installer.php.stub'));
+        $envExample = file_get_contents(base_path('.env.example'));
+
+        $this->assertStringContainsString('name="starter_github_repository"', $installer);
+        $this->assertStringContainsString('name="starter_github_token" type="password"', $installer);
+        $this->assertStringContainsString("'STARTER_GITHUB_REPOSITORY' =>", $installer);
+        $this->assertStringContainsString("'STARTER_GITHUB_TOKEN' => \$starterGithubToken", $installer);
+        $this->assertStringContainsString('STARTER_GITHUB_REPOSITORY=', $envExample);
+        $this->assertStringContainsString('STARTER_GITHUB_TOKEN=', $envExample);
     }
 }

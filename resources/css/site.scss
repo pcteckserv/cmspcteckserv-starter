@@ -2,14 +2,179 @@
 
 :root {
     --site-body-bg: #f7f7f5;
-    --site-text: #1f2933;
+    --site-surface: #ffffff;
+    --site-text: #17191d;
+    --site-muted: #61656d;
+    --site-border: #dedfdc;
+    --site-brand-red: #ee4137;
+    --site-brand-orange: #f9a440;
 }
 
 body {
     background: var(--site-body-bg);
     color: var(--site-text);
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.site-navbar {
+    min-height: 76px;
+    background: rgba(255, 255, 255, 0.94);
+    border-bottom: 1px solid var(--site-border);
+}
+
+.site-logo {
+    display: block;
+    width: clamp(176px, 18vw, 225px);
+    height: auto;
+}
+
+.section-kicker {
+    color: #c9362e;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
 }
 
 .public-hero {
-    min-height: 60vh;
+    position: relative;
+    overflow: hidden;
+    padding: clamp(4.5rem, 9vw, 8rem) 0;
+    background: linear-gradient(110deg, rgba(238, 65, 55, 0.07), transparent 42%), var(--site-body-bg);
+}
+
+.public-hero::after {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 9px;
+    height: 100%;
+    background: linear-gradient(var(--site-brand-red), var(--site-brand-orange));
+    content: "";
+}
+
+.public-hero h1 {
+    max-width: 760px;
+    font-size: clamp(2.45rem, 5.2vw, 4.65rem);
+    line-height: 1.04;
+    letter-spacing: 0;
+}
+
+.hero-copy {
+    max-width: 650px;
+    color: var(--site-muted);
+    font-size: clamp(1.05rem, 2vw, 1.25rem);
+    line-height: 1.7;
+}
+
+.btn-brand {
+    border-color: var(--site-brand-red);
+    background: var(--site-brand-red);
+    color: #fff;
+    font-weight: 600;
+}
+
+.btn-brand:hover,
+.btn-brand:focus-visible {
+    border-color: #ca3028;
+    background: #ca3028;
+    color: #fff;
+}
+
+.cms-summary {
+    position: relative;
+    overflow: hidden;
+    padding: clamp(2rem, 4vw, 3rem);
+    border: 1px solid var(--site-border);
+    border-top: 4px solid var(--site-brand-orange);
+    border-radius: 6px;
+    background: var(--site-surface);
+    box-shadow: 0 24px 60px rgba(23, 25, 29, 0.08);
+}
+
+.cms-summary p {
+    position: relative;
+    color: var(--site-muted);
+    line-height: 1.75;
+}
+
+.summary-number {
+    display: block;
+    margin-bottom: 2rem;
+    color: rgba(238, 65, 55, 0.1);
+    font-size: clamp(3.5rem, 9vw, 6rem);
+    font-weight: 800;
+    line-height: 0.8;
+}
+
+.benefits-section {
+    padding: clamp(4rem, 8vw, 7rem) 0;
+    border-top: 1px solid var(--site-border);
+    background: var(--site-surface);
+}
+
+.section-heading {
+    max-width: 700px;
+}
+
+.benefit-item {
+    padding: 2rem 0 0;
+    border-top: 2px solid var(--site-text);
+}
+
+.benefit-item p {
+    color: var(--site-muted);
+    line-height: 1.65;
+}
+
+.benefit-index {
+    display: block;
+    margin-bottom: 2.5rem;
+    color: var(--site-brand-red);
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.closing-section {
+    padding: clamp(3.5rem, 7vw, 5.5rem) 0;
+    border-top: 1px solid var(--site-border);
+}
+
+.site-footer {
+    padding: 1.6rem 0;
+    background: var(--site-text);
+    color: #c7c9cd;
+    font-size: 0.875rem;
+}
+
+@media (max-width: 575.98px) {
+    .site-navbar {
+        min-height: 68px;
+    }
+
+    .site-logo {
+        width: 150px;
+    }
+
+    .site-navbar .btn {
+        padding-right: 0.7rem !important;
+        padding-left: 0.7rem !important;
+        font-size: 0.75rem;
+    }
+
+    .public-hero {
+        padding-top: 3.75rem;
+    }
+
+    .public-hero::after {
+        width: 5px;
+    }
+
+    .site-footer span {
+        display: block;
+    }
+
+    .site-footer span + span {
+        margin-top: 0.35rem;
+    }
 }

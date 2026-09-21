@@ -5,9 +5,11 @@ namespace App\Services;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Storage;
+use Phar;
 use RuntimeException;
 use Symfony\Component\Process\ExecutableFinder;
 use Symfony\Component\Process\Process;
+use Throwable;
 use ZipArchive;
 
 class DeploymentPackageBuilder
@@ -246,9 +248,51 @@ class DeploymentPackageBuilder
             $this->addDirectoryToArchive($archive, $copy['source'], $copy['destination']);
         }
 
+        $composerPhar = $this->composerPharPath();
+
+        if ($composerPhar === null) {
+            throw new RuntimeException(
+                'Não foi possível localizar um composer.phar válido para incluir no pacote de deploy.',
+            );
+        }
+
+        if ($archive->locateName('composer.phar') === false && ! $archive->addFile($composerPhar, 'composer.phar')) {
+            throw new RuntimeException('Não foi possível adicionar o composer.phar ao pacote de deploy.');
+        }
+
         if (! $archive->close()) {
             throw new RuntimeException('Não foi possível finalizar o ficheiro ZIP da aplicação.');
         }
+    }
+
+    private function composerPharPath(): ?string
+    {
+        $configured = trim((string) config('deploy.composer_phar', ''));
+        $composer = (new ExecutableFinder())->find(PHP_OS_FAMILY === 'Windows' ? 'composer.bat' : 'composer');
+        $candidates = array_filter([
+            $configured !== '' ? $configured : null,
+            base_path('composer.phar'),
+            $composer !== null ? dirname($composer).DIRECTORY_SEPARATOR.'composer.phar' : null,
+            $composer,
+        ]);
+
+        foreach (array_unique($candidates) as $candidate) {
+            $path = realpath($candidate);
+
+            if ($path === false || ! $this->files->isFile($path) || ! $this->files->isReadable($path)) {
+                continue;
+            }
+
+            try {
+                new Phar($path);
+
+                return $path;
+            } catch (Throwable) {
+                continue;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -288,10 +332,8 @@ class DeploymentPackageBuilder
                 throw new RuntimeException('O path repository "'.$name.'" não foi encontrado para o pacote de deploy.');
             }
 
-            $copies[] = [
-                'source' => $source,
-                'destination' => 'vendor/'.$name,
-            ];
+            $copies[] = ['source' => $source, 'destination' => 'vendor/'.$name];
+            $copies[] = ['source' => $source, 'destination' => 'packages/'.$name];
         }
 
         foreach ((array) config('deploy.local_package_overlays', []) as $name => $source) {
