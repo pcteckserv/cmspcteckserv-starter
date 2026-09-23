@@ -1,4 +1,4 @@
-@extends('layouts.app', ['title' => 'CMS PCTECKSERV'])
+@extends('layouts.app')
 
 @section('content')
     <nav class="site-navbar navbar navbar-expand-lg" aria-label="Navegação principal">

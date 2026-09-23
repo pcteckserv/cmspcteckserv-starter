@@ -3,7 +3,10 @@
     "name": "laravel/laravel",
     "type": "project",
     "description": "The skeleton application for the Laravel framework.",
-    "keywords": ["laravel", "framework"],
+    "keywords": [
+        "laravel",
+        "framework"
+    ],
     "license": "MIT",
     "require": {
         "php": "^8.3",
@@ -40,7 +43,7 @@
             "options": {
                 "symlink": true,
                 "versions": {
-                    "pcteckserv/cms-core": "2.3.3"
+                    "pcteckserv/cms-core": "2.3.13"
                 }
             }
         },
@@ -103,7 +106,9 @@
             "pestphp/pest-plugin": true,
             "php-http/discovery": true
         },
-        "github-protocols": ["https"]
+        "github-protocols": [
+            "https"
+        ]
     },
     "minimum-stability": "stable",
     "prefer-stable": true

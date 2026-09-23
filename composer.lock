@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "7c585bde96c673545b6e06d60fa8fe8a",
+    "content-hash": "6fdfa0b47145fe1800d06dbf545c3e22",
     "packages": [
         {
             "name": "brick/math",
@@ -2587,11 +2587,11 @@
         },
         {
             "name": "pcteckserv/cms-core",
-            "version": "2.3.3",
+            "version": "2.3.13",
             "dist": {
                 "type": "path",
                 "url": "../cmspcteckserv-core",
-                "reference": "2c539d03fca4f6b7d83a653b13ea162dba829857"
+                "reference": "bd65b7da676385d6c2bca6f2a5e83fa655a54f3b"
             },
             "require": {
                 "illuminate/auth": "^13.0",
