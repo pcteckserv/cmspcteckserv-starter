@@ -43,7 +43,7 @@
             "options": {
                 "symlink": true,
                 "versions": {
-                    "pcteckserv/cms-core": "2.3.13"
+                    "pcteckserv/cms-core": "2.6.10"
                 }
             }
         },
