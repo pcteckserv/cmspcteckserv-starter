@@ -7,9 +7,7 @@ return [
     'application_archive_name' => 'application.zip',
     'installer_name' => 'installer.php',
     'composer_phar' => env('DEPLOY_COMPOSER_PHAR'),
-    'local_package_overlays' => [
-        'pcteckserv/cms-core' => '../cmspcteckserv-core',
-    ],
+    'local_package_overlays' => [],
     'build_commands' => [
         'npm run build',
     ],

@@ -339,6 +339,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'DB_DATABASE' => $dbDatabase,
                 'DB_USERNAME' => $dbUsername,
                 'DB_PASSWORD' => $dbPassword,
+                'CMS_CORE_REPOSITORY_URL' => 'https://github.com/diogoleitean/pcteckcms_core.git',
+                'CMS_PLUGINS_REPOSITORY_URL' => 'https://github.com/diogoleitean/pcteckcms_plugins.git',
                 'CMS_GITHUB_TOKEN' => $githubToken,
                 'STARTER_GITHUB_REPOSITORY' => str_starts_with($starterRepository, 'https://github.com/')
                     ? $starterRepository

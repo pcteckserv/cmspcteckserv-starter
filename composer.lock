@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "5a0c3b1cd3eac3828de20214b9bbb52a",
+    "content-hash": "996d8d6e3e49fe9ed7a210c85349904c",
     "packages": [
         {
             "name": "brick/math",
@@ -2553,8 +2553,8 @@
             "version": "dev-main",
             "dist": {
                 "type": "path",
-                "url": "C:/Users/PCTECK Redes Sociais/Desktop/cmspcteckserv/cmspcteckserv-starter/storage/framework/cache/cms-plugin-repository/cmspcteckserv-formularios-de-contacto",
-                "reference": "7457fa57150b5a8a59da6cd82ba2010702897f35"
+                "url": "storage/framework/cache/cms-plugin-repository/cmspcteckserv-formularios-de-contacto",
+                "reference": "23b13e9e2c1cb1fc1f52a9b8045af1c5b8a636d5"
             },
             "require": {
                 "illuminate/contracts": "^13.0",
@@ -2591,15 +2591,16 @@
             ],
             "description": "Plugin de formulários de contacto para o CMS PCTECKSERV.",
             "transport-options": {
-                "relative": false
+                "symlink": false,
+                "relative": true
             }
         },
         {
             "name": "pcteckserv/cms-core",
-            "version": "2.6.10",
-            "dist": {
-                "type": "path",
-                "url": "../cmspcteckserv-core",
+            "version": "v2.6.10",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/diogoleitean/pcteckcms_core.git",
                 "reference": "880e50d01911dbdfef70b6e56b4d852433aa1c09"
             },
             "require": {
@@ -2632,10 +2633,7 @@
                 "proprietary"
             ],
             "description": "Núcleo administrativo reutilizável do CMS PCTECK.",
-            "transport-options": {
-                "symlink": true,
-                "relative": true
-            }
+            "time": "2026-10-14T13:05:48+00:00"
         },
         {
             "name": "phpoption/phpoption",

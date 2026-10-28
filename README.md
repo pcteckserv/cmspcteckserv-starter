@@ -1,4 +1,4 @@
-﻿# CMS PCTECKSERV — Starter
+# CMS PCTECKSERV — Starter
 
 Aplicação Laravel utilizada como ponto de partida para novos websites. O CMS é fornecido pela package `pcteckserv/cms-core`; o tema, o frontend e as personalizações do cliente pertencem a cada projeto.
 
@@ -46,94 +46,24 @@ Escolher apenas uma destas alternativas. A partir daqui, seguir os passos de ins
 
 ## 3. Preparar as dependências privadas antes de instalar
 
-### Estado atual do Starter
+O Core é obtido diretamente de `https://github.com/diogoleitean/pcteckcms_core.git`. A restrição mantém-se em `2.*`; o lock atual fixa a versão `v2.6.10`.
 
-O `composer.json` inclui:
-
-- `pcteckserv/cms-core`, com restrição `2.*`, um repositório `path` em `../cmspcteckserv-core` e versão local declarada `2.6.10`.
-- `pcteckserv/cms-contact-forms`, com restrição `*@dev`, proveniente de um repositório `path` com um caminho absoluto da máquina de desenvolvimento.
-- Um repositório VCS do Core em `https://github.com/pcteckserv/cmspcteckserv-core.git`.
-
-O `composer.lock` também contém referências `path` para estas duas packages. **Clonar apenas o Starter e executar `composer install` numa nova localização pode falhar.** É necessário preparar uma das opções seguintes antes da instalação. A pasta `packages/cms-core/` não é o repositório configurado em `../cmspcteckserv-core`; não a utilizar como cópia alternativa do Core.
-
-### Opção A — desenvolvimento com packages locais
-
-Clonar o Core ao lado da aplicação, a partir da pasta que contém os projetos:
+O plugin de formulários pertence ao repositório `https://github.com/diogoleitean/pcteckcms_plugins.git`. Antes da primeira instalação, descarregar o catálogo para o caminho relativo esperado pelo Composer:
 
 ```bash
-git clone https://github.com/pcteckserv/cmspcteckserv-core.git cmspcteckserv-core
-```
-
-Utilizar o checkout do Core correspondente à versão que se pretende desenvolver. A versão declarada em `repositories[].options.versions` deve corresponder ao código desse checkout; alterar esse número não muda o código instalado.
-
-Obter junto da equipa o URL e a referência Git do plugin `pcteckserv/cms-contact-forms` e cloná-lo também numa pasta irmã:
-
-```bash
-git clone <URL_GIT_DO_PLUGIN> cmspcteckserv-formularios-de-contacto
-```
-
-A estrutura final será:
-
-```text
-pasta-de-trabalho/
-├── cmspcteckserv-core/
-├── cmspcteckserv-formularios-de-contacto/
-└── cmspcteckserv-starter/  (ou novo-projeto/)
-```
-
-No `composer.json` da aplicação, substituir apenas o `url` do repositório com `name: cms-plugin-contact-forms` pelo caminho relativo:
-
-```json
-{
-    "name": "cms-plugin-contact-forms",
-    "type": "path",
-    "url": "../cmspcteckserv-formularios-de-contacto"
-}
-```
-
-Manter o repositório local do Core e o restante conteúdo do ficheiro. No Windows, as ligações simbólicas podem exigir o Modo de Programador ou permissões adequadas. Quando não for possível utilizá-las, configurar `"symlink": false` nas opções dos repositórios `path` para o Composer copiar as packages.
-
-Depois de preparar o `.env` na secção 4, atualizar apenas as referências afetadas no lock e instalar:
-
-```bash
-composer update pcteckserv/cms-core pcteckserv/cms-contact-forms --no-install
+git clone --depth 1 https://github.com/diogoleitean/pcteckcms_plugins.git storage/framework/cache/cms-plugin-repository
+php -r "file_exists('database/database.sqlite') || touch('database/database.sqlite');"
 composer install
 composer check-platform-reqs
 ```
 
-Rever o diff de `composer.lock`: este comando volta a resolver as duas packages e pode selecionar uma referência mais recente do plugin. Validar o checkout e as versões antes de guardar o lock.
+Executar o clone apenas se essa pasta ainda não existir. O repositório contém o catálogo completo, mas apenas as packages declaradas no Composer são instaladas. O plugin é copiado para `vendor/` com `symlink: false`; o Core é instalado por Git, sem depender de uma pasta irmã da aplicação.
 
-### Opção B — projeto independente com packages por Git/Composer
+A pasta `packages/cms-core/` não é a dependência configurada e não deve ser utilizada como cópia alternativa do Core.
 
-No novo projeto, remover os dois repositórios `path` de `composer.json`, manter o repositório VCS do Core e adicionar o repositório privado oficial do plugin. Exemplo da propriedade `repositories`:
+Autenticar o Git/Composer com uma conta autorizada a ler os dois repositórios. Nunca colocar tokens nos URLs ou em ficheiros versionados. O token `CMS_GITHUB_TOKEN` do `.env` é utilizado pelo CMS; o Composer executado diretamente no terminal tem a sua própria autenticação.
 
-```json
-"repositories": [
-    {
-        "type": "vcs",
-        "url": "https://github.com/pcteckserv/cmspcteckserv-core.git"
-    },
-    {
-        "type": "vcs",
-        "url": "<URL_GIT_DO_PLUGIN>"
-    }
-]
-```
-
-Confirmar com a equipa as tags disponíveis e as restrições em `require`. O Core deve continuar a ser uma dependência versionada; o plugin está atualmente em desenvolvimento e deve usar uma versão estável quando esta estiver disponível.
-
-Autenticar o Git/Composer com uma conta autorizada. Se o Composer pedir um token, fornecê-lo pelo mecanismo de autenticação do Composer, fora dos ficheiros versionados. Nunca colocar tokens no URL do repositório, no `composer.json` ou no README.
-
-Depois de preparar o `.env` na secção 4, executar os mesmos comandos de atualização e instalação da opção A. A alteração de `repositories` não reescreve automaticamente o lock: confirmar que as duas packages deixaram de ter `dist.type: path` e caminhos locais antes de distribuir o projeto.
-
-Em clones seguintes do projeto já preparado, utilizar normalmente:
-
-```bash
-composer install
-composer check-platform-reqs
-```
-
-Guardar `composer.json` e `composer.lock` no repositório do projeto. Nunca editar diretamente `vendor/`.
+Em clones seguintes, preservar as versões de `composer.lock` e executar `composer install`. Guardar `composer.json` e `composer.lock` no repositório do projeto. Nunca editar diretamente `vendor/`.
 
 ## 4. Configurar o ambiente
 
@@ -165,7 +95,7 @@ Preencher `ADMIN_USER_EMAIL` com o endereço do administrador e `ADMIN_USER_PASS
 
 O `.env.example` usa sessões, cache e filas em base de dados, pelo que as migrations são necessárias antes de utilizar a aplicação. Com `MAIL_MAILER=log`, os emails ficam nos logs locais; configurar SMTP quando for necessário entregar emails reais.
 
-As variáveis `CMS_GITHUB_TOKEN`, `STARTER_GITHUB_REPOSITORY` e `STARTER_GITHUB_TOKEN` estão disponíveis no exemplo para integrações do CMS. Configurá-las apenas quando a funcionalidade utilizada o exigir. A autenticação do Composer é configurada separadamente.
+O `.env.example` já define `CMS_CORE_REPOSITORY_URL` e `CMS_PLUGINS_REPOSITORY_URL` com as novas origens. Configurar `CMS_GITHUB_TOKEN` com acesso de leitura aos dois repositórios para consultas e instalações pelo CMS. As variáveis `STARTER_GITHUB_REPOSITORY` e `STARTER_GITHUB_TOKEN` mantêm a configuração própria das atualizações do website. A autenticação do Composer no terminal é configurada separadamente.
 
 ### SQLite
 
@@ -344,7 +274,7 @@ Rever as versões e o diff do lock e testar antes de publicar. Se ainda utilizar
 
 ## 9. Preparar publicação
 
-O projeto inclui a rota autenticada `/compilar` para gerar um pacote de instalação. Rever primeiro `config/deploy.php`: existe um `local_package_overlays` do Core em `../cmspcteckserv-core`. Num projeto independente, ajustar ou remover essa entrada conforme a origem das packages, para não depender da estrutura da máquina do Starter.
+O projeto inclui a rota autenticada `/compilar` para gerar um pacote de instalação. O Core é incluído a partir da dependência instalada, sem sobreposição de uma pasta externa. O compilador inclui as origens dos plugins `path` no pacote de produção. O instalador escreve os novos URLs do Core e dos plugins no `.env` de produção; o token deve ter acesso aos dois repositórios.
 
 Antes de publicar, executar o build e a suite de testes, configurar o ambiente de produção com `APP_ENV=production`, `APP_DEBUG=false`, HTTPS e credenciais próprias, e apontar o servidor para `public/`. Preservar a `APP_KEY` nas atualizações. Configurar os consumidores das filas e o agendamento no servidor quando necessários. Não utilizar `php artisan serve` como servidor de produção.
 
@@ -352,7 +282,7 @@ Antes de publicar, executar o build e a suite de testes, configurar o ambiente d
 
 | Sintoma | Verificação / ação |
 | --- | --- |
-| Composer não encontra uma package `path` | Preparar os diretórios da secção 3 ou migrar os repositórios e o lock para VCS. O fallback VCS não corrige referências locais já guardadas no lock. |
+| Composer não encontra uma package `path` | Preparar a cópia do repositório de plugins conforme a secção 3. Não substituir nem eliminar essa pasta enquanto o Composer a utilizar como origem de packages. |
 | Acesso negado a um repositório privado | Confirmar acesso da conta e autenticação Git/Composer, sem guardar tokens no código. |
 | `could not find driver` | Ativar o driver PDO da base de dados no PHP utilizado pelo terminal e pelo servidor. |
 | SQLite inexistente ou tabelas em falta | Criar `database/database.sqlite`, confirmar o `.env` e executar `php artisan migrate`. |
