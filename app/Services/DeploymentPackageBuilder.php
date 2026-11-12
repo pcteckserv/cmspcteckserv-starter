@@ -2,11 +2,15 @@
 
 namespace App\Services;
 
+use App\Services\Deployment\DatabaseSnapshot;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Pcteckserv\CmsCore\Models\InstalledPlugin;
 use Phar;
 use RuntimeException;
+use Symfony\Component\Finder\Finder;
 use Symfony\Component\Process\ExecutableFinder;
 use Symfony\Component\Process\Process;
 use Throwable;
@@ -19,15 +23,38 @@ class DeploymentPackageBuilder
 
     public function __construct(
         private readonly Filesystem $files,
-    ) {
+    ) {}
+
+    /**
+     * @return array{path:string,relative_path:string,size:int,created_at:string,warnings:array<int, string>}
+     */
+    public function build(array $components = ['base'], #[\SensitiveParameter] ?string $databasePassword = null): array
+    {
+        $originalLimit = (int) ini_get('max_execution_time');
+        $timeout = (int) config('deploy.execution_timeout', 1800);
+
+        // O limite do pedido tem de abranger o build e a criação dos ficheiros ZIP.
+        if (! set_time_limit($timeout > 0 ? $timeout : 1800)) {
+            throw new RuntimeException('Não foi possível configurar o tempo disponível para a compilação.');
+        }
+
+        try {
+            return $this->buildPackage($components, $databasePassword);
+        } finally {
+            set_time_limit($originalLimit);
+        }
     }
 
     /**
      * @return array{path:string,relative_path:string,size:int,created_at:string,warnings:array<int, string>}
      */
-    public function build(): array
+    private function buildPackage(array $components, #[\SensitiveParameter] ?string $databasePassword): array
     {
         $this->warnings = [];
+
+        if ($components === [] || array_diff($components, ['base', 'media', 'database', 'plugins']) !== []) {
+            throw new RuntimeException('Selecione opções de compilação válidas.');
+        }
 
         if (! extension_loaded('zip')) {
             throw new RuntimeException('A extensão PHP ZipArchive não está disponível.');
@@ -35,14 +62,15 @@ class DeploymentPackageBuilder
 
         $disk = Storage::disk((string) config('deploy.output_disk', 'local'));
         $outputDirectory = trim((string) config('deploy.output_directory', 'deploy'), '/');
-        $packageName = (string) config('deploy.package_name', 'cmspcteckserv-deploy.zip');
+        $packageName = pathinfo((string) config('deploy.package_name', 'cmspcteckserv-deploy.zip'), PATHINFO_FILENAME).'-'.bin2hex(random_bytes(8)).'.zip';
         $applicationArchiveName = (string) config('deploy.application_archive_name', 'application.zip');
         $installerName = (string) config('deploy.installer_name', 'installer.php');
 
         $disk->makeDirectory($outputDirectory);
 
-        $temporaryDirectory = storage_path('app/'.$outputDirectory.'/tmp-'.date('YmdHis').'-'.bin2hex(random_bytes(4)));
+        $temporaryDirectory = $disk->path($outputDirectory.'/tmp-'.bin2hex(random_bytes(8)));
         $this->files->ensureDirectoryExists($temporaryDirectory);
+        chmod($temporaryDirectory, 0700);
 
         $applicationArchivePath = $temporaryDirectory.'/'.$applicationArchiveName;
         $installerPath = $temporaryDirectory.'/'.$installerName;
@@ -53,14 +81,44 @@ class DeploymentPackageBuilder
                 $this->files->delete($packagePath);
             }
 
-            $this->runBuildCommands();
-            $this->createApplicationArchive($applicationArchivePath);
-            $this->files->put($installerPath, $this->renderInstaller($applicationArchiveName));
-
+            $manifest = ['format' => 2, 'components' => array_values(array_unique($components)), 'files' => []];
+            if (in_array('base', $components, true)) {
+                $this->runBuildCommands();
+                $this->createApplicationArchive($applicationArchivePath);
+                $manifest['files'][$applicationArchiveName] = hash_file('sha256', $applicationArchivePath);
+            }
+            if (in_array('database', $components, true)) {
+                (new DatabaseSnapshot)->export(DB::connection()->getPdo(), $temporaryDirectory.'/database.enc', (string) $databasePassword, (string) config('app.key'));
+                $manifest['files']['database.enc'] = hash_file('sha256', $temporaryDirectory.'/database.enc');
+            }
+            if (in_array('media', $components, true)) {
+                $manifest['media'] = $this->createMediaArchive($temporaryDirectory.'/media.zip');
+                $manifest['files']['media.zip'] = hash_file('sha256', $temporaryDirectory.'/media.zip');
+            }
+            if (in_array('plugins', $components, true)) {
+                $plugins = InstalledPlugin::query()->whereNotNull('installed_version')->get([
+                    'slug', 'name', 'package', 'label', 'description', 'provider', 'installed_version', 'status',
+                ])->toArray();
+                $this->files->put($temporaryDirectory.'/plugins.json', json_encode($plugins, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+                $manifest['files']['plugins.json'] = hash_file('sha256', $temporaryDirectory.'/plugins.json');
+            }
+            $runtime = $temporaryDirectory.'/deployment-runtime.php';
+            $this->files->copy(app_path('Services/Deployment/DatabaseSnapshot.php'), $runtime);
+            $manifest['files']['deployment-runtime.php'] = hash_file('sha256', $runtime);
+            $this->files->put($temporaryDirectory.'/deployment.json', json_encode($manifest, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+            $this->files->put($installerPath, $this->renderInstaller($applicationArchiveName, $manifest));
             $package = $this->openArchive($packagePath);
-            $package->addFile($applicationArchivePath, $applicationArchiveName);
+            foreach (array_keys($manifest['files']) as $filename) {
+                if (! $package->addFile($temporaryDirectory.'/'.$filename, $filename)) {
+                    throw new RuntimeException('Não foi possível adicionar um componente ao pacote.');
+                }
+            }
+            $package->addFile($temporaryDirectory.'/deployment.json', 'deployment.json');
             $package->addFile($installerPath, $installerName);
-            $package->close();
+            if (! $package->close()) {
+                throw new RuntimeException('Não foi possível finalizar o pacote de instalação.');
+            }
+            chmod($packagePath, 0600);
 
             return [
                 'path' => $packagePath,
@@ -69,9 +127,44 @@ class DeploymentPackageBuilder
                 'created_at' => now()->toDateTimeString(),
                 'warnings' => $this->warnings,
             ];
+        } catch (Throwable $exception) {
+            $this->files->delete($packagePath);
+            throw $exception;
         } finally {
             $this->files->deleteDirectory($temporaryDirectory);
         }
+    }
+
+    private function createMediaArchive(string $path): array
+    {
+        $diskName = (string) config('cms-core.media.disk', 'public');
+        if (config('filesystems.disks.'.$diskName.'.driver') !== 'local') {
+            throw new RuntimeException('A exportação de media exige um disco local.');
+        }
+        $disk = Storage::disk($diskName);
+        $directory = trim((string) config('cms-core.media.directory', 'cms/media'), '/');
+        $root = str_replace('\\', '/', $disk->path(''));
+        $base = rtrim(str_replace('\\', '/', base_path()), '/').'/';
+        if (! str_starts_with($root, $base) || $directory === '' || str_contains($directory, '..')) {
+            throw new RuntimeException('A pasta de media tem de pertencer ao projeto.');
+        }
+        $relativeRoot = trim(substr($root, strlen($base)), '/');
+        if (! str_starts_with($relativeRoot.'/', 'storage/app/') && ! str_starts_with($relativeRoot.'/', 'public/')) {
+            throw new RuntimeException('O disco de media tem de estar em storage/app ou public.');
+        }
+        $archive = $this->openArchive($path);
+        $archive->addEmptyDir($directory);
+        foreach ($disk->allFiles($directory) as $filename) {
+            $source = $disk->path($filename);
+            if (is_link($source) || ! is_readable($source) || ! $archive->addFile($source, $filename)) {
+                throw new RuntimeException('Não foi possível adicionar um ficheiro de media.');
+            }
+        }
+        if (! $archive->close()) {
+            throw new RuntimeException('Não foi possível finalizar o pacote de media.');
+        }
+
+        return ['disk' => $diskName, 'root' => $relativeRoot, 'directory' => $directory];
     }
 
     private function runBuildCommands(): void
@@ -195,7 +288,7 @@ class DeploymentPackageBuilder
 
     private function findNpmExecutable(): ?string
     {
-        $executable = (new ExecutableFinder())->find(PHP_OS_FAMILY === 'Windows' ? 'npm.cmd' : 'npm');
+        $executable = (new ExecutableFinder)->find(PHP_OS_FAMILY === 'Windows' ? 'npm.cmd' : 'npm');
 
         if ($executable !== null) {
             return $executable;
@@ -225,17 +318,21 @@ class DeploymentPackageBuilder
         $archive = $this->openArchive($archivePath);
         $basePath = base_path();
         $exclude = $this->normaliseExclusions((array) config('deploy.exclude', []));
+        $exclude = array_merge($exclude, ['storage', 'output', 'auth.json', 'public/.cms_installed', 'public/installer.php', 'public/application.zip']);
         $pathRepositoryCopies = $this->pathRepositoryCopies();
         $exclude = array_merge($exclude, array_column($pathRepositoryCopies, 'destination'));
 
-        foreach ($this->files->allFiles($basePath, true) as $file) {
+        $finder = (new Finder)->files()->ignoreDotFiles(false)->ignoreVCS(false)->in($basePath)->exclude($exclude);
+        foreach ($finder as $file) {
             $relativePath = str_replace('\\', '/', $file->getRelativePathname());
 
-            if ($this->shouldExclude($relativePath, $exclude)) {
+            if ($this->shouldExclude($relativePath, $exclude)
+                || (preg_match('#(^|/)(\.env(?:\..*)?|auth\.json|\.git)(/|$)#', $relativePath) && basename($relativePath) !== '.env.example')
+                || preg_match('#^database/.*\.(sqlite|sqlite3|db)(-wal|-shm)?$#i', $relativePath)) {
                 continue;
             }
 
-            if (! $this->files->isReadable($file->getPathname())) {
+            if ($file->isLink() || ! $this->files->isReadable($file->getPathname())) {
                 throw new RuntimeException('O ficheiro "'.$relativePath.'" não pode ser lido para o pacote de deploy.');
             }
 
@@ -268,7 +365,7 @@ class DeploymentPackageBuilder
     private function composerPharPath(): ?string
     {
         $configured = trim((string) config('deploy.composer_phar', ''));
-        $composer = (new ExecutableFinder())->find(PHP_OS_FAMILY === 'Windows' ? 'composer.bat' : 'composer');
+        $composer = (new ExecutableFinder)->find(PHP_OS_FAMILY === 'Windows' ? 'composer.bat' : 'composer');
         $candidates = array_filter([
             $configured !== '' ? $configured : null,
             base_path('composer.phar'),
@@ -363,16 +460,18 @@ class DeploymentPackageBuilder
         $source = rtrim($source, DIRECTORY_SEPARATOR);
         $destination = trim(str_replace('\\', '/', $destination), '/');
 
-        foreach ($this->files->allFiles($source, true) as $file) {
+        $finder = (new Finder)->files()->ignoreDotFiles(false)->in($source)->exclude(['.git', 'node_modules', 'vendor']);
+        foreach ($finder as $file) {
             $relativePath = str_replace('\\', '/', $file->getRelativePathname());
 
-            if ($this->shouldExclude($relativePath, ['.git', 'node_modules', 'vendor'])) {
+            if ($this->shouldExclude($relativePath, ['.git', 'node_modules', 'vendor'])
+                || (preg_match('#(^|/)(\.env(?:\..*)?|auth\.json)(/|$)#', $relativePath) && basename($relativePath) !== '.env.example')) {
                 continue;
             }
 
             $archivePath = $destination.'/'.$relativePath;
 
-            if (! $this->files->isReadable($file->getPathname())) {
+            if ($file->isLink() || ! $this->files->isReadable($file->getPathname())) {
                 throw new RuntimeException('O ficheiro "'.$archivePath.'" não pode ser lido para o pacote de deploy.');
             }
 
@@ -383,7 +482,7 @@ class DeploymentPackageBuilder
     }
 
     /**
-     * @param array<int, string> $exclude
+     * @param  array<int, string>  $exclude
      * @return array<int, string>
      */
     private function normaliseExclusions(array $exclude): array
@@ -395,7 +494,7 @@ class DeploymentPackageBuilder
     }
 
     /**
-     * @param array<int, string> $exclude
+     * @param  array<int, string>  $exclude
      */
     private function shouldExclude(string $relativePath, array $exclude): bool
     {
@@ -408,7 +507,7 @@ class DeploymentPackageBuilder
 
     private function openArchive(string $path): ZipArchive
     {
-        $archive = new ZipArchive();
+        $archive = new ZipArchive;
 
         if ($archive->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
             throw new RuntimeException('Não foi possível criar o ficheiro ZIP de instalação.');
@@ -417,10 +516,14 @@ class DeploymentPackageBuilder
         return $archive;
     }
 
-    private function renderInstaller(string $applicationArchiveName): string
+    private function renderInstaller(string $applicationArchiveName, array $manifest = []): string
     {
         $stub = $this->files->get(resource_path('installer/installer.php.stub'));
 
-        return str_replace('{{ application_archive_name }}', $applicationArchiveName, $stub);
+        return str_replace(
+            ['{{ application_archive_name }}', '{{ deployment_manifest }}'],
+            [$applicationArchiveName, base64_encode(json_encode($manifest, JSON_THROW_ON_ERROR))],
+            $stub,
+        );
     }
 }

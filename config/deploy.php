@@ -7,7 +7,9 @@ return [
     'application_archive_name' => 'application.zip',
     'installer_name' => 'installer.php',
     'composer_phar' => env('DEPLOY_COMPOSER_PHAR'),
-    'local_package_overlays' => [],
+    'local_package_overlays' => [
+        'pcteckserv/cms-core' => '../pcteckcms_core',
+    ],
     'build_commands' => [
         'npm run build',
     ],
@@ -24,6 +26,7 @@ return [
     ],
     'build_attempts' => 3,
     'build_timeout' => 300,
+    'execution_timeout' => (int) env('DEPLOY_EXECUTION_TIMEOUT', 1800),
     'exclude' => [
         '.env',
         '.git',

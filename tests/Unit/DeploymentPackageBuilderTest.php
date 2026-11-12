@@ -70,10 +70,24 @@ class DeploymentPackageBuilderTest extends TestCase
 
     public function test_reconhece_se_os_assets_compilados_estao_atualizados(): void
     {
-        $builder = new DeploymentPackageBuilder(new Filesystem());
+        $directory = 'storage/framework/testing/deploy-freshness-'.bin2hex(random_bytes(4));
+        $files = new Filesystem;
+        $files->ensureDirectoryExists(base_path($directory));
+        $files->put(base_path($directory.'/source.js'), '');
+        $files->put(base_path($directory.'/manifest.json'), '{}');
+        touch(base_path($directory.'/source.js'), time() - 60);
+        config()->set('deploy.build_sources', [$directory.'/source.js']);
+        $builder = new DeploymentPackageBuilder(new Filesystem);
         $buildFallbackIsFresh = (new ReflectionClass($builder))->getMethod('buildFallbackIsFresh');
 
-        $this->assertTrue($buildFallbackIsFresh->invoke($builder, 'public/build/manifest.json'));
+        try {
+            $this->assertTrue($buildFallbackIsFresh->invoke($builder, $directory.'/manifest.json'));
+            touch(base_path($directory.'/source.js'), time() + 60);
+            clearstatcache();
+            $this->assertFalse($buildFallbackIsFresh->invoke($builder, $directory.'/manifest.json'));
+        } finally {
+            $files->deleteDirectory(base_path($directory));
+        }
     }
 
     public function test_installer_prepara_as_pastas_gravaveis_do_laravel(): void
@@ -100,9 +114,8 @@ class DeploymentPackageBuilderTest extends TestCase
 
     public function test_inclui_pacotes_locais_configurados_no_deploy(): void
     {
-        config()->set('deploy.local_package_overlays', [
-            'pcteckserv/cms-core' => 'vendor/pcteckserv/cms-core',
-        ]);
+        $this->assertSame('../pcteckcms_core', config('deploy.local_package_overlays.pcteckserv/cms-core'));
+        $this->assertDirectoryExists(base_path('../pcteckcms_core'));
 
         $builder = new DeploymentPackageBuilder(new Filesystem());
         $copies = (new ReflectionClass($builder))->getMethod('pathRepositoryCopies')->invoke($builder);
@@ -110,7 +123,7 @@ class DeploymentPackageBuilderTest extends TestCase
         $pluginSource = collect($copies)->firstWhere('destination', 'packages/pcteckserv/cms-contact-forms');
 
         $this->assertNotNull($core);
-        $this->assertSame(realpath(base_path('vendor/pcteckserv/cms-core')), $core['source']);
+        $this->assertSame(realpath(base_path('../pcteckcms_core')), $core['source']);
         $this->assertNotNull($pluginSource);
         $this->assertDirectoryExists($pluginSource['source']);
     }
