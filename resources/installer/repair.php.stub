@@ -1,0 +1,565 @@
+<?php
+
+declare(strict_types=1);
+
+// Autónomo: a recuperação não depende do autoload nem do arranque do Laravel.
+final class CmsRepairTool
+{
+    private array $secrets = [];
+
+    public function __construct(
+        private readonly string $passwordHash,
+        private readonly int $expiresAt,
+        private readonly string $composerPayload,
+        private readonly string $composerChecksum,
+    ) {}
+
+    public function handle(): void
+    {
+        ini_set('display_errors', '0');
+        header('Cache-Control: no-store, private');
+        header('X-Content-Type-Options: nosniff');
+        header('Referrer-Policy: no-referrer');
+        header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'");
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start(['use_strict_mode' => true, 'cookie_httponly' => true, 'cookie_samesite' => 'Strict', 'cookie_secure' => ! empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off']);
+        }
+        $identity = hash('sha256', __FILE__.$this->passwordHash);
+        $csrfKey = 'cms_repair_csrf_'.$identity;
+        $authKey = 'cms_repair_auth_'.$identity;
+        $csrf = $_SESSION[$csrfKey] ??= bin2hex(random_bytes(32));
+        $output = '';
+        $error = '';
+        $disabled = false;
+        $stateHandle = null;
+        try {
+            if (time() > $this->expiresAt) {
+                throw new RuntimeException('O acesso de reparação expirou. Gere um novo pacote.');
+            }
+            $stateHandle = $this->privateLock('access-'.$identity);
+            $state = json_decode(stream_get_contents($stateHandle), true) ?: [];
+            if ($state['disabled'] ?? false) {
+                throw new RuntimeException('Este reparador foi desativado. Remova o ficheiro por WinSCP.');
+            }
+            if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+                if (! is_string($_POST['csrf_token'] ?? null) || ! hash_equals($csrf, $_POST['csrf_token'])) {
+                    throw new RuntimeException('O formulário expirou. Recarregue a página.');
+                }
+                if (($_SESSION[$authKey] ?? 0) < time() - 900) {
+                    if (($state['blocked_until'] ?? 0) > time()) {
+                        throw new RuntimeException('Demasiadas tentativas. Aguarde cinco minutos.');
+                    }
+                    $password = $_POST['password'] ?? '';
+                    if (! is_string($password) || strlen($password) > 1024 || ! password_verify(hash('sha256', $password), $this->passwordHash)) {
+                        $failures = (($state['last_failure'] ?? 0) > time() - 300 ? ($state['failures'] ?? 0) : 0) + 1;
+                        $state = ['failures' => $failures, 'last_failure' => time(), 'blocked_until' => $failures >= 5 ? time() + 300 : 0];
+                        $this->saveState($stateHandle, $state);
+                        throw new RuntimeException('Palavra-passe inválida.');
+                    }
+                    session_regenerate_id(true);
+                    $_SESSION[$authKey] = time();
+                    $this->saveState($stateHandle, []);
+                }
+                $_SESSION[$authKey] = time();
+                $action = $_POST['action'] ?? 'login';
+                if (! is_string($action) || ! in_array($action, ['login', 'diagnose', 'install', 'core-git', 'autoload', 'discover', 'caches', 'migrate-status', 'migrate', 'finish'], true)) {
+                    throw new RuntimeException('Operação de reparação inválida.');
+                }
+                if ($action === 'finish') {
+                    $this->saveState($stateHandle, ['disabled' => true]);
+                    unset($_SESSION[$authKey]);
+                    $disabled = true;
+                    $output = 'Reparador desativado. Remova este ficheiro por WinSCP.';
+                } elseif ($action !== 'login') {
+                    if (in_array($action, ['install', 'core-git'], true) && ($_POST['backup_confirmed'] ?? '') !== '1') {
+                        throw new RuntimeException('Confirme que tem uma cópia de segurança antes de reparar as dependências.');
+                    }
+                    if ($action === 'migrate' && ($_POST['migrations_confirmed'] ?? '') !== '1') {
+                        throw new RuntimeException('Confirme a aplicação das migrations e a existência de uma cópia de segurança.');
+                    }
+                    $output = $this->execute($action);
+                }
+            }
+        } catch (Throwable $exception) {
+            http_response_code(400);
+            $error = $exception instanceof RuntimeException ? $this->redact($exception->getMessage()) : 'Não foi possível executar a reparação. Verifique as permissões do alojamento.';
+        } finally {
+            if (is_resource($stateHandle)) {
+                flock($stateHandle, LOCK_UN);
+                fclose($stateHandle);
+            }
+        }
+        $authenticated = ! $disabled && ($_SESSION[$authKey] ?? 0) >= time() - 900 && time() <= $this->expiresAt;
+        $this->render($csrf, $authenticated, $disabled, $output, $error);
+    }
+
+    private function privateLock(string $name)
+    {
+        $path = sys_get_temp_dir().DIRECTORY_SEPARATOR.'cms-repair-'.hash('sha256', $name).'.lock';
+        if (is_link($path)) {
+            throw new RuntimeException('O ficheiro de controlo da reparação não é seguro.');
+        }
+        $handle = fopen($path, 'c+');
+        if ($handle === false) {
+            throw new RuntimeException('Não foi possível preparar o controlo da reparação.');
+        }
+        chmod($path, 0600);
+        if (! flock($handle, LOCK_EX | LOCK_NB)) {
+            fclose($handle);
+            throw new RuntimeException('Já existe uma operação em execução. Aguarde antes de tentar novamente.');
+        }
+
+        return $handle;
+    }
+
+    private function saveState($handle, array $state): void
+    {
+        rewind($handle);
+        if (! ftruncate($handle, 0) || fwrite($handle, json_encode($state, JSON_THROW_ON_ERROR)) === false || ! fflush($handle)) {
+            throw new RuntimeException('Não foi possível guardar o estado de segurança do reparador.');
+        }
+    }
+
+    private function applicationPath(): string
+    {
+        foreach ([dirname(__DIR__).'/app', dirname(__DIR__)] as $candidate) {
+            $path = realpath($candidate);
+            if ($path !== false && is_file($path.'/.env') && is_file($path.'/artisan') && is_file($path.'/composer.json') && is_file($path.'/composer.lock')) {
+                return $path;
+            }
+        }
+        throw new RuntimeException('A aplicação não foi encontrada. Coloque o reparador na pasta pública do site existente.');
+    }
+
+    private function readEnvironment(string $appPath): array
+    {
+        $environment = [];
+        foreach (file($appPath.'/.env', FILE_IGNORE_NEW_LINES) ?: [] as $line) {
+            if (! preg_match('/^\s*(?:export\s+)?([A-Z_][A-Z0-9_]*)\s*=\s*(.*)$/', $line, $matches)) {
+                continue;
+            }
+            $value = trim($matches[2]);
+            if (str_starts_with($value, '"') && str_ends_with($value, '"')) {
+                $value = strtr(substr($value, 1, -1), ['\\"' => '"', '\\\\' => '\\', '\\$' => '$']);
+            } elseif (str_starts_with($value, "'") && str_ends_with($value, "'")) {
+                $value = substr($value, 1, -1);
+            } else {
+                $value = preg_replace('/\s+#.*$/', '', $value) ?? '';
+            }
+            $environment[$matches[1]] = $value;
+            if (preg_match('/TOKEN|PASSWORD|SECRET|KEY|CREDENTIAL|DSN|URL/', $matches[1]) && $value !== '') {
+                $this->secrets[] = $value;
+            }
+        }
+
+        return $environment;
+    }
+
+    private function phpBinary(array $environment, string $appPath): string
+    {
+        $candidates = array_filter([
+            $environment['CMS_PHP_CLI_BINARY'] ?? null,
+            PHP_SAPI === 'cli' ? PHP_BINARY : null,
+            PHP_BINDIR.DIRECTORY_SEPARATOR.(PHP_OS_FAMILY === 'Windows' ? 'php.exe' : 'php'),
+            dirname(PHP_BINARY).DIRECTORY_SEPARATOR.(PHP_OS_FAMILY === 'Windows' ? 'php.exe' : 'php'),
+            '/usr/bin/php', '/usr/local/bin/php',
+        ]);
+        foreach (array_unique($candidates) as $candidate) {
+            if (! is_file($candidate)) {
+                continue;
+            }
+            try {
+                $this->run([$candidate, '-r', 'exit(PHP_SAPI === "cli" && PHP_VERSION_ID >= 80300 ? 0 : 1);'], $appPath, [], 10);
+
+                return $candidate;
+            } catch (RuntimeException) {
+                continue;
+            }
+        }
+        throw new RuntimeException('Não foi encontrado PHP CLI 8.3 ou superior. Defina CMS_PHP_CLI_BINARY no .env com o caminho indicado pelo alojamento.');
+    }
+
+    private function assertApplicationPath(string $appPath, string $relative): string
+    {
+        $path = $appPath;
+        foreach (explode('/', $relative) as $segment) {
+            if ($segment === '' || $segment === '.' || $segment === '..' || str_contains($segment, '\\')) {
+                throw new RuntimeException('O caminho de recuperação não é válido.');
+            }
+            $path .= DIRECTORY_SEPARATOR.$segment;
+            if (is_link($path)) {
+                throw new RuntimeException('A recuperação do Core não permite ligações simbólicas nos caminhos utilizados.');
+            }
+        }
+
+        return $path;
+    }
+
+    private function copyDirectory(string $source, string $destination, bool $private = true): void
+    {
+        if (is_link($source) || is_link($destination) || ! is_dir($source)) {
+            throw new RuntimeException('Não foi possível copiar uma pasta segura para a recuperação.');
+        }
+        if (! is_dir($destination) && ! mkdir($destination, $private ? 0700 : 0755, true)) {
+            throw new RuntimeException('Não foi possível preparar a pasta de recuperação.');
+        }
+        foreach (new DirectoryIterator($source) as $item) {
+            if ($item->isDot()) {
+                continue;
+            }
+            $target = $destination.DIRECTORY_SEPARATOR.$item->getFilename();
+            if ($item->isLink() || is_link($target)) {
+                throw new RuntimeException('A recuperação do Core não permite copiar ligações simbólicas.');
+            }
+            if ($item->isDir()) {
+                $this->copyDirectory($item->getPathname(), $target, $private);
+            } elseif (! $item->isFile() || ! copy($item->getPathname(), $target) || ! chmod($target, $private ? 0600 : 0644)) {
+                throw new RuntimeException('Não foi possível copiar um ficheiro de recuperação.');
+            }
+        }
+    }
+
+    private function validGitSource(mixed $source): bool
+    {
+        return is_array($source) && ($source['type'] ?? '') === 'git'
+            && is_string($source['reference'] ?? null) && preg_match('/^[a-f0-9]{7,64}$/i', $source['reference'])
+            && is_string($source['url'] ?? null) && $source['url'] !== ''
+            && ! preg_match('/[\r\n\x00]/', $source['url']) && ! preg_match('~^https?://[^/]*@~i', $source['url'])
+            && parse_url($source['url'], PHP_URL_PASS) === null;
+    }
+
+    private function backupCore(string $appPath): array
+    {
+        $corePath = $this->assertApplicationPath($appPath, 'vendor/pcteckserv/cms-core');
+        $metadataPath = $this->assertApplicationPath($appPath, 'vendor/composer');
+        $this->assertApplicationPath($appPath, 'vendor/autoload.php');
+        $metadata = json_decode((string) file_get_contents($metadataPath.'/installed.json'), true, 512, JSON_THROW_ON_ERROR);
+        $core = null;
+        foreach ($metadata['packages'] ?? $metadata as $package) {
+            if (is_array($package) && ($package['name'] ?? '') === 'pcteckserv/cms-core') {
+                $core = $package;
+                break;
+            }
+        }
+        if (($core['installation-source'] ?? '') !== 'source' || ! $this->validGitSource($core['source'] ?? null)) {
+            throw new RuntimeException('Esta operação exige um Core registado como instalação Git/source.');
+        }
+        if (! is_dir($corePath) || file_exists($corePath.'/.git') || is_link($corePath.'/.git')) {
+            throw new RuntimeException('Esta operação destina-se apenas a um Core existente sem metadados .git.');
+        }
+        $lock = json_decode((string) file_get_contents($appPath.'/composer.lock'), true, 512, JSON_THROW_ON_ERROR);
+        $target = null;
+        foreach ($lock['packages'] ?? [] as $package) {
+            if (($package['name'] ?? '') === 'pcteckserv/cms-core') {
+                $target = $package;
+                break;
+            }
+        }
+        if (! is_string($target['version'] ?? null) || ! $this->validGitSource($target['source'] ?? null)) {
+            throw new RuntimeException('O lock de produção não contém uma origem Git válida para recuperar o Core.');
+        }
+        $backup = $this->assertApplicationPath($appPath, 'storage/app/private/cms-repair-backups/core-'.gmdate('Ymd-His').'-'.bin2hex(random_bytes(8)));
+        if (! mkdir($backup, 0700, true)) {
+            throw new RuntimeException('Não foi possível criar a cópia privada do Core. A reinstalação não foi iniciada.');
+        }
+        $this->copyDirectory($corePath, $backup.'/core');
+        $this->copyDirectory($metadataPath, $backup.'/composer');
+        if (is_file($appPath.'/vendor/autoload.php') && (! copy($appPath.'/vendor/autoload.php', $backup.'/autoload.php') || ! chmod($backup.'/autoload.php', 0600))) {
+            throw new RuntimeException('Não foi possível guardar o autoload antes da reinstalação.');
+        }
+
+        return ['path' => $backup, 'source' => $target['source'], 'version' => $target['version']];
+    }
+
+    private function restoreCore(string $appPath, string $backup): void
+    {
+        $corePath = $this->assertApplicationPath($appPath, 'vendor/pcteckserv/cms-core');
+        $metadataPath = $this->assertApplicationPath($appPath, 'vendor/composer');
+        // Preserva também os ficheiros da tentativa falhada, sem os eliminar.
+        if (file_exists($corePath) && ! rename($corePath, $backup.'/failed-core')) {
+            throw new RuntimeException('Não foi possível preservar a tentativa falhada para restaurar o Core anterior.');
+        }
+        $this->copyDirectory($backup.'/core', $corePath, false);
+        $this->copyDirectory($backup.'/composer', $metadataPath, false);
+        if (is_file($backup.'/autoload.php') && ! copy($backup.'/autoload.php', $appPath.'/vendor/autoload.php')) {
+            throw new RuntimeException('Não foi possível restaurar o autoload anterior.');
+        }
+    }
+
+    public function execute(string $action): string
+    {
+        $appPath = $this->applicationPath();
+        $environment = $this->readEnvironment($appPath);
+        if ($action === 'diagnose') {
+            $lock = json_decode((string) file_get_contents($appPath.'/composer.lock'), true, 512, JSON_THROW_ON_ERROR);
+            $installed = is_file($appPath.'/vendor/composer/installed.json') ? json_decode((string) file_get_contents($appPath.'/vendor/composer/installed.json'), true, 512, JSON_THROW_ON_ERROR) : [];
+            $lines = ['PHP do browser: '.PHP_VERSION, 'Execução de processos: '.(function_exists('proc_open') ? 'disponível' : 'indisponível')];
+            foreach ($lock['packages'] ?? [] as $package) {
+                if (! str_starts_with($package['name'], 'pcteckserv/')) {
+                    continue;
+                }
+                $version = 'não registada';
+                foreach ($installed['packages'] ?? $installed as $current) {
+                    if (is_array($current) && ($current['name'] ?? '') === $package['name']) {
+                        $version = $current['version'] ?? 'desconhecida';
+                    }
+                }
+                $lines[] = $package['name'].' — lock: '.$package['version'].'; instalada: '.$version;
+            }
+
+            return $this->redact(implode("\n", $lines));
+        }
+        if (! function_exists('proc_open')) {
+            throw new RuntimeException('O alojamento bloqueia proc_open. O reparador não pode executar processos enquanto esta função estiver desativada.');
+        }
+        $operationLock = $this->privateLock('application-'.$appPath);
+        $temporaryComposer = null;
+        $gitConfig = null;
+        $composerHome = null;
+        $coreBackup = null;
+        $coreChanged = false;
+        $installStarted = false;
+        try {
+            @set_time_limit(330);
+            ignore_user_abort(true);
+            $php = $this->phpBinary($environment, $appPath);
+            if ($action === 'caches') {
+                // Os manifests antigos podem impedir o próprio arranque do Artisan.
+                $cachePath = $appPath.'/bootstrap/cache';
+                if (is_link($cachePath)) {
+                    throw new RuntimeException('A pasta de cache contém uma ligação simbólica não permitida.');
+                }
+                foreach (['config.php', 'packages.php', 'services.php', 'events.php', 'routes-v7.php'] as $filename) {
+                    $path = $cachePath.'/'.$filename;
+                    if (is_link($path) || (is_file($path) && ! unlink($path))) {
+                        throw new RuntimeException('Não foi possível limpar os ficheiros de cache do arranque.');
+                    }
+                }
+            }
+            $commands = match ($action) {
+                'install' => [['composer', 'install', '--no-dev', '--prefer-dist', '--optimize-autoloader', '--no-scripts', '--no-plugins']],
+                'core-git' => [],
+                'autoload' => [['composer', 'dump-autoload', '--optimize', '--no-scripts', '--no-plugins']],
+                'discover' => [['artisan', 'package:discover']],
+                'caches' => [['artisan', 'config:clear'], ['artisan', 'route:clear'], ['artisan', 'view:clear'], ['artisan', 'event:clear']],
+                'migrate-status' => [['artisan', 'migrate:status']],
+                'migrate' => [['artisan', 'migrate', '--force']],
+                default => throw new RuntimeException('Operação de reparação inválida.'),
+            };
+            $processEnvironment = ['APP_DEBUG' => 'false', 'GIT_TERMINAL_PROMPT' => '0', 'GCM_INTERACTIVE' => 'Never', 'COMPOSER_DISCARD_CHANGES' => 'false'];
+            if ($action === 'core-git' || $commands[0][0] === 'composer') {
+                $contents = base64_decode($this->composerPayload, true);
+                if ($contents === false || ! hash_equals($this->composerChecksum, hash('sha256', $contents))) {
+                    throw new RuntimeException('O Composer incluído no reparador não é válido.');
+                }
+                $temporaryComposer = tmpfile();
+                $gitConfig = tmpfile();
+                $composerHome = sys_get_temp_dir().'/cms-composer-'.bin2hex(random_bytes(16));
+                if ($temporaryComposer === false || $gitConfig === false || ! mkdir($composerHome, 0700)) {
+                    throw new RuntimeException('Não foi possível preparar o Composer.');
+                }
+                fwrite($temporaryComposer, $contents);
+                fflush($temporaryComposer);
+                $gitContents = "[safe]\n\tdirectory = ".str_replace('\\', '/', $appPath)."\n[url \"https://github.com/\"]\n\tinsteadOf = git@github.com:\n";
+                $token = $environment['CMS_GITHUB_TOKEN'] ?? '';
+                if ($token !== '' && ! preg_match('/[\r\n]/', $token)) {
+                    $authorization = base64_encode('x-access-token:'.$token);
+                    $this->secrets[] = $authorization;
+                    $gitContents .= "[http \"https://github.com/\"]\n\textraheader = AUTHORIZATION: basic {$authorization}\n";
+                    $processEnvironment['COMPOSER_AUTH'] = json_encode(['github-oauth' => ['github.com' => $token]], JSON_THROW_ON_ERROR);
+                }
+                fwrite($gitConfig, $gitContents);
+                fflush($gitConfig);
+                $processEnvironment['GIT_CONFIG_GLOBAL'] = stream_get_meta_data($gitConfig)['uri'];
+                $processEnvironment['COMPOSER_HOME'] = $composerHome;
+                $processEnvironment['COMPOSER_CACHE_DIR'] = $composerHome;
+            }
+            $reports = [];
+            $deadline = microtime(true) + 300;
+            if ($action === 'core-git') {
+                $recovery = $this->backupCore($appPath);
+                $coreBackup = $recovery['path'];
+                $reports[] = $this->run([$php, stream_get_meta_data($temporaryComposer)['uri'], 'install', '--dry-run', '--no-dev', '--no-scripts', '--no-plugins', '--no-interaction', '--no-ansi'], $appPath, $processEnvironment, max(1, (int) ($deadline - microtime(true))));
+                $commands = [
+                    ['git', 'clone', '--no-checkout', '--', $recovery['source']['url'], $coreBackup.'/staged-core'],
+                    ['git', '-C', $coreBackup.'/staged-core', 'remote', 'add', 'composer', '--', $recovery['source']['url']],
+                    ['git', '-C', $coreBackup.'/staged-core', 'checkout', '--detach', $recovery['source']['reference']],
+                ];
+            }
+            foreach ($commands as $arguments) {
+                $type = array_shift($arguments);
+                $command = $type === 'git'
+                    ? ['git', ...$arguments]
+                    : [$php, $type === 'composer' ? stream_get_meta_data($temporaryComposer)['uri'] : $appPath.'/artisan', ...$arguments, '--no-interaction', '--no-ansi'];
+                $reports[] = $this->run($command, $appPath, $processEnvironment, max(1, (int) ($deadline - microtime(true))));
+            }
+
+            if ($coreBackup !== null) {
+                if (! is_dir($coreBackup.'/staged-core/.git')) {
+                    throw new RuntimeException('Não foi possível recuperar os metadados Git do Core.');
+                }
+                $coreManifest = json_decode((string) file_get_contents($coreBackup.'/staged-core/composer.json'), true, 512, JSON_THROW_ON_ERROR);
+                if (($coreManifest['name'] ?? '') !== 'pcteckserv/cms-core') {
+                    throw new RuntimeException('O código recuperado não corresponde à package do Core.');
+                }
+                $stagedFiles = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($coreBackup.'/staged-core', FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::SELF_FIRST);
+                foreach ($stagedFiles as $stagedFile) {
+                    if ($stagedFile->isLink()) {
+                        throw new RuntimeException('O Core recuperado contém uma ligação simbólica não permitida.');
+                    }
+                }
+                $corePath = $this->assertApplicationPath($appPath, 'vendor/pcteckserv/cms-core');
+                if (! rename($corePath, $coreBackup.'/original-core')) {
+                    throw new RuntimeException('Não foi possível preservar a pasta original do Core.');
+                }
+                $coreChanged = true;
+                if (! rename($coreBackup.'/staged-core', $corePath)) {
+                    throw new RuntimeException('Não foi possível colocar o Core recuperado no destino.');
+                }
+                $installStarted = true;
+                $reports[] = $this->run([$php, stream_get_meta_data($temporaryComposer)['uri'], 'install', '--no-dev', '--prefer-dist', '--optimize-autoloader', '--no-scripts', '--no-plugins', '--no-interaction', '--no-ansi'], $appPath, $processEnvironment, max(1, (int) ($deadline - microtime(true))));
+                $installed = json_decode((string) file_get_contents($appPath.'/vendor/composer/installed.json'), true, 512, JSON_THROW_ON_ERROR);
+                $aligned = false;
+                foreach ($installed['packages'] ?? $installed as $package) {
+                    if (($package['name'] ?? '') === 'pcteckserv/cms-core' && ($package['version'] ?? '') === $recovery['version']
+                        && ($package['source']['reference'] ?? '') === $recovery['source']['reference']) {
+                        $aligned = true;
+                    }
+                }
+                if (! $aligned) {
+                    throw new RuntimeException('Não foi possível confirmar o alinhamento do Core com a versão e o commit do lock.');
+                }
+            }
+            $summary = $coreBackup !== null
+                ? "\nMetadados Git recuperados e Core alinhado com o lock. Limpe agora as caches e descubra os packages. Cópia privada: ".basename($coreBackup).'.'
+                : '';
+
+            return $this->redact(implode("\n", $reports)."\nOperação concluída.".$summary);
+        } catch (Throwable $exception) {
+            if ($coreBackup !== null) {
+                $message = $exception instanceof RuntimeException ? $exception->getMessage() : 'A recuperação do Core falhou.';
+                if ($installStarted) {
+                    throw new RuntimeException($message."\nO Core com metadados Git foi preservado no destino. A instalação do lock não terminou; não foram repostos metadados antigos sobre dependências parcialmente instaladas. Cópia privada: ".basename($coreBackup).'. Utilize Reparar dependências do lock para continuar.');
+                }
+                if (str_contains($message, 'excedeu o tempo disponível')) {
+                    throw new RuntimeException($message."\nA cópia privada foi preservada: ".basename($coreBackup).'. Verifique os processos antes de repetir.');
+                }
+                if (! $coreChanged) {
+                    throw new RuntimeException($message."\nA pasta do Core e os registos do Composer não foram substituídos. Cópia privada: ".basename($coreBackup).'.');
+                }
+                try {
+                    $this->restoreCore($appPath, $coreBackup);
+                } catch (Throwable) {
+                    throw new RuntimeException($message."\nA reposição automática não terminou. A cópia privada foi preservada: ".basename($coreBackup).'.');
+                }
+                throw new RuntimeException($message."\nO Core e os registos anteriores do Composer foram repostos. Cópia privada: ".basename($coreBackup).'.');
+            }
+            throw $exception;
+        } finally {
+            foreach ([$temporaryComposer, $gitConfig] as $handle) {
+                if (is_resource($handle)) {
+                    fclose($handle);
+                }
+            }
+            if (is_string($composerHome) && is_dir($composerHome)) {
+                $items = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($composerHome, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);
+                foreach ($items as $item) {
+                    $item->isDir() && ! $item->isLink() ? rmdir($item->getPathname()) : unlink($item->getPathname());
+                }
+                rmdir($composerHome);
+            }
+            flock($operationLock, LOCK_UN);
+            fclose($operationLock);
+        }
+    }
+
+    private function run(array $command, string $appPath, array $overrides, int $timeout): string
+    {
+        $output = tmpfile();
+        if ($output === false) {
+            throw new RuntimeException('Não foi possível preparar o relatório.');
+        }
+        $process = null;
+        try {
+            $environment = getenv();
+            $environment = array_merge(is_array($environment) ? $environment : [], $overrides);
+            $process = proc_open($command, [0 => ['pipe', 'r'], 1 => $output, 2 => $output], $pipes, $appPath, $environment);
+            if (! is_resource($process)) {
+                throw new RuntimeException('Não foi possível iniciar o processo PHP.');
+            }
+            fclose($pipes[0]);
+            $deadline = microtime(true) + $timeout;
+            do {
+                $state = proc_get_status($process);
+                if (! $state['running']) {
+                    break;
+                }
+                if (microtime(true) > $deadline) {
+                    proc_terminate($process);
+                    throw new RuntimeException('A operação excedeu o tempo disponível. Verifique o diagnóstico antes de repetir.');
+                }
+                usleep(50000);
+            } while (true);
+            $closed = proc_close($process);
+            $process = null;
+            $status = $state['exitcode'] >= 0 ? $state['exitcode'] : $closed;
+            rewind($output);
+            $report = $this->redact(stream_get_contents($output));
+            if ($status !== 0) {
+                throw new RuntimeException('A operação falhou (código '.$status.").\n".$report);
+            }
+
+            return $report;
+        } finally {
+            if (is_resource($process)) {
+                proc_terminate($process);
+                proc_close($process);
+            }
+            fclose($output);
+        }
+    }
+
+    public function redact(string $output): string
+    {
+        foreach ($this->secrets as $secret) {
+            $output = str_replace([$secret, rawurlencode($secret)], '[credencial ocultada]', $output);
+        }
+        $output = preg_replace('/\x1B\[[0-?]*[ -\/]*[@-~]/', '', $output) ?? '';
+        $output = preg_replace('~(https?://)[^\s/@]+(?::[^\s/@]*)?@~i', '$1[credencial ocultada]@', $output) ?? '';
+        $output = preg_replace('/(Authorization:\s*(?:Basic|Bearer)\s+)\S+/i', '$1[credencial ocultada]', $output) ?? '';
+        $output = preg_replace('/(?:[A-Z]:[\\\\\/]|\/)(?:[^\s:<>"\']+[\\\\\/])+[^\s:<>"\']*/', '[caminho ocultado]', $output) ?? '';
+
+        return strlen($output) > 65536 ? "[Início do relatório omitido]\n".substr($output, -65536) : $output;
+    }
+
+    private function render(string $csrf, bool $authenticated, bool $disabled, string $output, string $error): void
+    {
+        $html = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        ?>
+<!doctype html>
+<html lang="pt-PT"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reparação do CMS</title>
+<style>body{font:16px system-ui;max-width:900px;margin:40px auto;padding:0 20px;background:#f5f6f8;color:#202428}form,pre{padding:20px;background:white;border:1px solid #ddd;border-radius:8px;margin:16px 0}pre{white-space:pre-wrap;overflow-wrap:anywhere}button,input{font:inherit;padding:10px}button{cursor:pointer}label{display:block;margin:12px 0}.error{color:#a11}</style>
+<h1>Reparação do CMS</h1>
+<p>Recuperação da instalação existente sem importar conteúdos, substituir o .env ou apagar uploads. O acesso é temporário.</p>
+<?php if ($error !== ''): ?><pre class="error" role="alert"><?= $html($error) ?></pre><?php endif ?>
+<?php if ($output !== ''): ?><pre role="status"><?= $html($output) ?></pre><?php endif ?>
+<?php if (! $disabled && ! $authenticated): ?>
+<form method="post"><input type="hidden" name="csrf_token" value="<?= $html($csrf) ?>"><input type="hidden" name="action" value="login">
+<label>Palavra-passe temporária <input type="password" name="password" maxlength="255" autocomplete="current-password" required></label><button>Aceder à reparação</button></form>
+<?php elseif (! $disabled): ?>
+<p>Comece pelo diagnóstico. Depois de reparar dependências, limpe as caches e descubra os packages. Execute uma operação de cada vez, sem atualizar o CMS em simultâneo.</p>
+<?php foreach (['diagnose' => '1. Diagnosticar instalação', 'core-git' => 'Recuperar Core sem metadados Git', 'install' => '2. Reparar dependências do lock', 'autoload' => 'Reconstruir autoload', 'caches' => '3. Limpar caches de configuração, rotas e views', 'discover' => '4. Descobrir packages', 'migrate-status' => 'Consultar migrations', 'migrate' => 'Aplicar migrations pendentes', 'finish' => 'Terminar e desativar reparador'] as $action => $label): ?>
+<form method="post"><input type="hidden" name="csrf_token" value="<?= $html($csrf) ?>"><input type="hidden" name="action" value="<?= $html($action) ?>">
+<?php if ($action === 'core-git'): ?><p>Guarda uma cópia privada do Core e dos registos do Composer, prepara a revisão exata do lock de produção e conclui a instalação desse lock, sem scripts ou migrations. Não depende da disponibilidade do commit antigo. A pasta original é preservada antes da troca.</p><label><input type="checkbox" name="backup_confirmed" value="1" required> Tenho uma cópia de segurança e autorizo a recuperação e a instalação do lock, com preservação da cópia anterior.</label><?php endif ?>
+<?php if ($action === 'install'): ?><p>Instala as versões do composer.lock de produção. Pode substituir ficheiros em vendor e remover dependências de desenvolvimento. Não executa scripts Composer nem migrations.</p><label><input type="checkbox" name="backup_confirmed" value="1" required> Tenho uma cópia de segurança e confirmei que não há outra atualização em execução.</label><?php endif ?>
+<?php if ($action === 'migrate'): ?><label><input type="checkbox" name="migrations_confirmed" value="1" required> Tenho uma cópia de segurança e autorizo as migrations pendentes, que podem alterar a estrutura e os dados.</label><?php endif ?>
+<button><?= $html($label) ?></button></form>
+<?php endforeach ?>
+<?php endif ?>
+</html>
+        <?php
+    }
+}
+
+(new CmsRepairTool({{ password_hash }}, {{ expires_at }}, '{{ composer_payload }}', '{{ composer_checksum }}'))->handle();

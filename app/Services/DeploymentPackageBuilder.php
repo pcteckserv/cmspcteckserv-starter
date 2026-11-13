@@ -39,9 +39,61 @@ class DeploymentPackageBuilder
         }
 
         try {
+            if (in_array('repair', $components, true)) {
+                if ($components !== ['repair'] || ! is_string($databasePassword) || $databasePassword === '') {
+                    throw new RuntimeException('Selecione apenas Reparação e defina uma palavra-passe.');
+                }
+
+                return $this->buildRepairPackage($databasePassword);
+            }
+
             return $this->buildPackage($components, $databasePassword);
         } finally {
             set_time_limit($originalLimit);
+        }
+    }
+
+    /** @return array{path:string,relative_path:string,size:int,created_at:string,warnings:array<int, string>} */
+    private function buildRepairPackage(#[\SensitiveParameter] string $password): array
+    {
+        $composer = $this->composerPharPath();
+        if ($composer === null) {
+            throw new RuntimeException('Não foi possível localizar o Composer para o pacote de reparação.');
+        }
+
+        $disk = Storage::disk((string) config('deploy.output_disk', 'local'));
+        $directory = trim((string) config('deploy.output_directory', 'deploy'), '/');
+        $disk->makeDirectory($directory);
+        $relativePath = $directory.'/cms-repair-'.bin2hex(random_bytes(8)).'.zip';
+        $path = $disk->path($relativePath);
+        $filename = 'repair-'.bin2hex(random_bytes(8)).'.php';
+        $source = str_replace(
+            ['{{ password_hash }}', '{{ expires_at }}', '{{ composer_payload }}', '{{ composer_checksum }}'],
+            [
+                var_export(password_hash(hash('sha256', $password), PASSWORD_DEFAULT), true),
+                (string) (time() + 86400),
+                base64_encode($this->files->get($composer)),
+                hash_file('sha256', $composer),
+            ],
+            $this->files->get(resource_path('installer/repair.php.stub')),
+        );
+
+        try {
+            $archive = $this->openArchive($path);
+            if (! $archive->addFromString($filename, $source)) {
+                throw new RuntimeException('Não foi possível adicionar o reparador ao pacote.');
+            }
+            $archive->addFromString('LEIA-ME.txt', "Modo de reparação do CMS\n\nEnvie apenas {$filename} para a pasta pública do site por WinSCP e abra-o por HTTPS no browser.\nUse a palavra-passe definida na compilação. O acesso expira 24 horas após a geração.\nO destino é a pasta app ao lado da pasta pública, ou a aplicação cuja pasta public contém o reparador.\nComece pelo diagnóstico. Faça um backup antes de reparar as dependências. Não execute atualizações simultâneas.\nNão são importados dados nem substituídos o .env ou os uploads. As migrations exigem uma ação e confirmação próprias.\nA reparação pode substituir ficheiros das dependências em vendor.\nAo terminar, desative o reparador no browser e remova o ficheiro por WinSCP.\n");
+            if (! $archive->close()) {
+                throw new RuntimeException('Não foi possível finalizar o pacote de reparação.');
+            }
+            chmod($path, 0600);
+
+            return ['path' => $path, 'relative_path' => $relativePath, 'size' => $this->files->size($path), 'created_at' => now()->toDateTimeString(), 'warnings' => []];
+        } catch (Throwable $exception) {
+            $this->files->delete($path);
+
+            throw $exception;
         }
     }
 

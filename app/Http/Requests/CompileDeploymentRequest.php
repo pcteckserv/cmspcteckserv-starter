@@ -18,13 +18,30 @@ class CompileDeploymentRequest extends FormRequest
     {
         return [
             'components' => ['required', 'array', 'min:1', 'max:4'],
-            'components.*' => ['required', 'string', 'distinct', Rule::in(['base', 'media', 'database', 'plugins'])],
+            'components.*' => ['required', 'string', 'distinct', Rule::in(['base', 'media', 'database', 'plugins', 'repair'])],
             'password' => [
-                Rule::excludeIf(fn () => ! in_array('database', (array) $this->input('components', []), true)),
-                Rule::requiredIf(fn () => in_array('database', (array) $this->input('components', []), true)),
+                Rule::excludeIf(fn () => ! $this->needsPassword()),
+                Rule::requiredIf(fn () => $this->needsPassword()),
                 'nullable', 'string', 'max:255', 'confirmed',
             ],
         ];
+    }
+
+    private function needsPassword(): bool
+    {
+        $components = (array) $this->input('components', []);
+
+        return in_array('database', $components, true) || in_array('repair', $components, true);
+    }
+
+    public function after(): array
+    {
+        return [function (Validator $validator): void {
+            $components = (array) $this->input('components', []);
+            if (in_array('repair', $components, true) && $components !== ['repair']) {
+                $validator->errors()->add('components', 'A reparação deve ser gerada separadamente dos restantes componentes.');
+            }
+        }];
     }
 
     public function messages(): array
@@ -32,7 +49,7 @@ class CompileDeploymentRequest extends FormRequest
         return [
             'components.required' => 'Selecione pelo menos uma opção para compilar.',
             'components.*.in' => 'A opção de compilação selecionada não é válida.',
-            'password.required' => 'Defina uma palavra-passe para proteger a base de dados.',
+            'password.required' => 'Defina uma palavra-passe para proteger o pacote.',
             'password.confirmed' => 'A confirmação da palavra-passe não coincide.',
         ];
     }

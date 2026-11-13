@@ -2,6 +2,28 @@
 
 @section('content')
     <h1 class="h3">Compilar o site</h1>
+    <div class="card mb-4">
+        <div class="card-body">
+            <h2 class="h5">Modo de reparação</h2>
+            <p>Gera um reparador temporário para enviar por WinSCP e executar no browser, mesmo quando o CMS não abre. Preserva a configuração, os uploads e os dados existentes. As migrations são opcionais e exigem confirmação.</p>
+            <p class="text-secondary small">O acesso expira 24 horas após a geração. O reparador inclui o Composer, apresenta os erros com as credenciais ocultadas e requer permissão para executar processos PHP no alojamento.</p>
+            <form method="POST" action="{{ route('deploy.compile.store') }}">
+                @csrf
+                <input type="hidden" name="components[]" value="repair">
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label" for="repair-password">Palavra-passe temporária de reparação</label>
+                        <input class="form-control" id="repair-password" name="password" type="password" maxlength="255" autocomplete="new-password" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="repair-password-confirmation">Confirmar palavra-passe</label>
+                        <input class="form-control" id="repair-password-confirmation" name="password_confirmation" type="password" autocomplete="new-password" required>
+                    </div>
+                </div>
+                <button class="btn btn-warning" type="submit">Gerar pacote de reparação</button>
+            </form>
+        </div>
+    </div>
     <p class="text-secondary">Selecione o conteúdo a incluir no pacote. O instalador deteta as opções selecionadas e importa apenas esse conteúdo.</p>
 
     @if ($errors->any())

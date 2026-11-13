@@ -69,7 +69,32 @@ class DeploymentCompilerTest extends TestCase
             ->assertSee('value="base"', false)->assertSee('value="media"', false)
             ->assertSee('value="database"', false)->assertSee('value="plugins"', false)
             ->assertSee('name="_token"', false)
-            ->assertDontSee('minlength="12"', false);
+            ->assertSee('Gerar pacote de reparação');
+    }
+
+    public function test_reparacao_exige_password_confirmada_e_selecao_exclusiva(): void
+    {
+        $this->withoutMiddleware(ThrottleRequests::class);
+        $this->mock(DeploymentPackageBuilder::class)->shouldNotReceive('build');
+        $this->actingAs($this->superAdmin())->post('/compilar', ['components' => ['repair']])
+            ->assertSessionHasErrors('password');
+        $this->post('/compilar', ['components' => ['repair', 'base'], 'password' => 'palavra-passe-de-teste', 'password_confirmation' => 'palavra-passe-de-teste'])
+            ->assertSessionHasErrors('components');
+        $this->post('/compilar', ['components' => ['repair'], 'password' => 'palavra-passe-de-teste', 'password_confirmation' => 'diferente'])
+            ->assertSessionHasErrors('password');
+    }
+
+    public function test_gera_reparacao_com_password_confirmada_sem_minimo_de_caracteres(): void
+    {
+        $disk = Storage::fake('local');
+        $disk->put('deploy/repair.zip', 'pacote-de-teste');
+        $this->mock(DeploymentPackageBuilder::class)->shouldReceive('build')->once()
+            ->with(['repair'], 'abc')
+            ->andReturn(['path' => $disk->path('deploy/repair.zip')]);
+
+        $this->actingAs($this->superAdmin())->post('/compilar', [
+            'components' => ['repair'], 'password' => 'abc', 'password_confirmation' => 'abc',
+        ])->assertOk()->assertDownload('repair.zip');
     }
 
     public function test_post_de_visitante_nao_compila(): void
