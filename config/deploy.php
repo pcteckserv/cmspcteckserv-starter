@@ -8,7 +8,7 @@ return [
     'installer_name' => 'installer.php',
     'composer_phar' => env('DEPLOY_COMPOSER_PHAR'),
     'local_package_overlays' => [
-        'pcteckserv/cms-core' => '../cmspcteckserv-core',
+        'pcteckserv/cms-core' => 'vendor/pcteckserv/cms-core',
     ],
     'build_commands' => [
         'npm run build',

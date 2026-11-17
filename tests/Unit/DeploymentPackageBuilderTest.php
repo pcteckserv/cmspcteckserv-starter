@@ -114,8 +114,8 @@ class DeploymentPackageBuilderTest extends TestCase
 
     public function test_inclui_pacotes_locais_configurados_no_deploy(): void
     {
-        $this->assertSame('../pcteckcms_core', config('deploy.local_package_overlays.pcteckserv/cms-core'));
-        $this->assertDirectoryExists(base_path('../pcteckcms_core'));
+        $this->assertSame('vendor/pcteckserv/cms-core', config('deploy.local_package_overlays.pcteckserv/cms-core'));
+        $this->assertDirectoryExists(base_path('vendor/pcteckserv/cms-core'));
 
         $builder = new DeploymentPackageBuilder(new Filesystem());
         $copies = (new ReflectionClass($builder))->getMethod('pathRepositoryCopies')->invoke($builder);
@@ -123,7 +123,7 @@ class DeploymentPackageBuilderTest extends TestCase
         $pluginSource = collect($copies)->firstWhere('destination', 'packages/pcteckserv/cms-contact-forms');
 
         $this->assertNotNull($core);
-        $this->assertSame(realpath(base_path('../pcteckcms_core')), $core['source']);
+        $this->assertSame(realpath(base_path('vendor/pcteckserv/cms-core')), $core['source']);
         $this->assertNotNull($pluginSource);
         $this->assertDirectoryExists($pluginSource['source']);
     }
