@@ -81,6 +81,16 @@ final class PluginCatalogDistribution extends PluginRepository
 
     public static function boot($app): void
     {
+        // Ponte partilhada para Starters em Cores já instalados. Respeita uma
+        // integração explícita do próprio site, como a da CG Limpezas.
+        if (! $app->bound(\Pcteckserv\CmsCore\Updates\StarterUpdater::class)) {
+            $bridge = __DIR__.'/CompatibleStarterUpdater.php';
+            if (!is_file($bridge)) $bridge = base_path('bootstrap/CompatibleStarterUpdater.php');
+            if (is_file($bridge)) {
+                require_once $bridge;
+                $app->bind(\Pcteckserv\CmsCore\Updates\StarterUpdater::class, CompatibleStarterUpdater::class);
+            }
+        }
         $app->bind(PluginRepository::class, self::class);
         foreach (self::LABELS as $slug => $label) {
             if (config('cms-plugins.plugins.'.$slug)) {
