@@ -475,6 +475,24 @@ class DeploymentPackageBuilder
                 $source = base_path($source);
             }
 
+            // Exportar a instalação em execução, mesmo que a pasta de desenvolvimento
+            // tenha sido renomeada ou contenha uma versão mais recente.
+            if (preg_match('~^[a-z0-9_.-]+/[a-z0-9_.-]+$~', $name)
+                && \Composer\InstalledVersions::isInstalled($name)) {
+                $installed = \Composer\InstalledVersions::getInstallPath($name);
+                if (is_string($installed) && is_dir($installed)) {
+                    $manifest = json_decode((string) file_get_contents($installed.'/composer.json'), true);
+                    if (($manifest['name'] ?? null) !== $name) throw new RuntimeException('A identidade do pacote instalado não corresponde ao deploy: '.$name);
+                    $plugin = is_file($installed.'/cms-plugin.json') ? json_decode((string) file_get_contents($installed.'/cms-plugin.json'), true) : null;
+                    $version = ltrim((string) \Composer\InstalledVersions::getPrettyVersion($name), 'v');
+                    if (is_array($plugin) && preg_match('/^\d+\.\d+\.\d+$/D', $version)
+                        && (($plugin['package'] ?? null) !== $name || ($plugin['version'] ?? null) !== $version)) {
+                        throw new RuntimeException('Os ficheiros instalados não correspondem à versão de '.$name.'. Corrija o plugin antes de compilar.');
+                    }
+                    $source = $installed;
+                }
+            }
+
             $source = realpath($source);
 
             if ($source === false || ! $this->files->isDirectory($source)) {
