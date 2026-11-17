@@ -11,7 +11,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        config()->set('cms-core.updates.starter.version', '2.0.0');
     }
 
     /**
@@ -19,6 +19,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        require_once app_path('Support/PluginCatalogDistribution.php');
+        \Pcteckserv\Distribution\PluginCatalogDistribution::boot($this->app);
     }
 }

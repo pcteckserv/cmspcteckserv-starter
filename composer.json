@@ -1,8 +1,8 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/laravel",
+    "name": "pcteckserv/cmspcteckserv-starter",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
+    "description": "Base Laravel e CMS PCTECKSERV para novos websites.",
     "keywords": [
         "laravel",
         "framework"
@@ -12,8 +12,8 @@
         "php": "^8.3",
         "laravel/framework": "^13.17",
         "laravel/tinker": "^3.0",
-        "pcteckserv/cms-contact-forms": "*@dev",
-        "pcteckserv/cms-core": "2.*"
+        "pcteckserv/cms-contact-forms": "^2.0.0",
+        "pcteckserv/cms-core": "^3.1.12"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
@@ -42,12 +42,15 @@
             "type": "path",
             "url": "storage/framework/cache/cms-plugin-repository/cmspcteckserv-formularios-de-contacto",
             "options": {
-                "symlink": false
+                "symlink": false,
+                "versions": {
+                    "pcteckserv/cms-contact-forms": "2.0.0"
+                }
             }
         },
         {
             "type": "git",
-            "url": "https://github.com/diogoleitean/pcteckcms_core.git"
+            "url": "https://github.com/pcteckserv/cmspcteckserv-core.git"
         }
     ],
     "scripts": {

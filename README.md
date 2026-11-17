@@ -46,12 +46,12 @@ Escolher apenas uma destas alternativas. A partir daqui, seguir os passos de ins
 
 ## 3. Preparar as dependências privadas antes de instalar
 
-O Core é obtido diretamente de `https://github.com/diogoleitean/pcteckcms_core.git`. A restrição mantém-se em `2.*`; o lock atual fixa a versão `v2.6.10`.
+O Core é obtido diretamente de `https://github.com/pcteckserv/cmspcteckserv-core.git`. A linha 2.0 deste Starter destina-se a novas instalações Core 3; o lock fixa Core `v3.1.12`. A passagem de um Starter 1.x/Core 2 exige migração preparada e não deve ser feita como atualização comum.
 
-O plugin de formulários pertence ao repositório `https://github.com/diogoleitean/pcteckcms_plugins.git`. Antes da primeira instalação, descarregar o catálogo para o caminho relativo esperado pelo Composer:
+O plugin de formulários pertence ao repositório `https://github.com/pcteckserv/cmspcteckserv-plugins.git`. Antes da primeira instalação, descarregar o catálogo para o caminho relativo esperado pelo Composer:
 
 ```bash
-git clone --depth 1 https://github.com/diogoleitean/pcteckcms_plugins.git storage/framework/cache/cms-plugin-repository
+git clone --depth 1 https://github.com/pcteckserv/cmspcteckserv-plugins.git storage/framework/cache/cms-plugin-repository
 php -r "file_exists('database/database.sqlite') || touch('database/database.sqlite');"
 composer install
 composer check-platform-reqs
@@ -59,7 +59,7 @@ composer check-platform-reqs
 
 Executar o clone apenas se essa pasta ainda não existir. O repositório contém o catálogo completo, mas apenas as packages declaradas no Composer são instaladas. O plugin é copiado para `vendor/` com `symlink: false`; o Core é instalado por Git, sem depender de uma pasta irmã da aplicação.
 
-A pasta `packages/cms-core/` não é a dependência configurada e não deve ser utilizada como cópia alternativa do Core.
+A antiga cópia `packages/cms-core/` foi removida. O Core instalado pelo Composer é a única origem em execução. Os plugins seguem os nomes Clientes, Loja e Personalização, mantendo os pacotes Composer e os dados. Consulte [a base Core 3](docs/BASE-CORE3.md).
 
 Autenticar o Git/Composer com uma conta autorizada a ler os dois repositórios. Nunca colocar tokens nos URLs ou em ficheiros versionados. O token `CMS_GITHUB_TOKEN` do `.env` é utilizado pelo CMS; o Composer executado diretamente no terminal tem a sua própria autenticação.
 
