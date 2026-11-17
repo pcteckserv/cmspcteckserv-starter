@@ -19,7 +19,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        require_once bootstrap_path('plugin-catalog.php');
+        require_once base_path('bootstrap/plugin-catalog.php');
         \Pcteckserv\Distribution\PluginCatalogDistribution::boot($this->app);
     }
 }
