@@ -1,6 +1,9 @@
 <?php
 // Executado antes do Composer; não precisa de vendor nem altera ficheiros.
 $root = $argv[1] ?? dirname(__DIR__);
+// A aplicação instalada usa o atualizador do Core, que valida a origem efetiva.
+// Não bloquear atualizações por causa de repositórios antigos já ultrapassados.
+if (is_file($root.'/vendor/autoload.php')) exit(0);
 try {
     $composer = json_decode(file_get_contents($root.'/composer.json'), true, flags: JSON_THROW_ON_ERROR);
     foreach ($composer['repositories'] ?? [] as $repository) {

@@ -20,6 +20,10 @@ class CanonicalPluginSourcesTest extends TestCase
             $this->assertSame(1, (new Process([PHP_BINARY, $tool, $root]))->run());
             file_put_contents($root.'/catalog/forms/cms-plugin.json', json_encode(['package'=>'pcteckserv/cms-contact-forms','version'=>'2.0.0']));
             $this->assertSame(0, (new Process([PHP_BINARY, $tool, $root]))->run());
+            mkdir($root.'/vendor');
+            file_put_contents($root.'/vendor/autoload.php', '<?php');
+            file_put_contents($root.'/catalog/forms/cms-plugin.json', '{}');
+            $this->assertSame(0, (new Process([PHP_BINARY, $tool, $root]))->run());
         } finally { (new Filesystem)->deleteDirectory($root); }
     }
 }

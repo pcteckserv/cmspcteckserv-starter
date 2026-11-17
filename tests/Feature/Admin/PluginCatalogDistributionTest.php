@@ -79,6 +79,10 @@ class PluginCatalogDistributionTest extends TestCase
         $repository = app(PluginRepository::class);
         $this->assertSame('cmspcteckserv-clientes', $repository->find('customers')->directory);
         $this->assertCount(1, $repository->available()->where('package', 'pcteckserv/cms-customers'));
+        $manifest = json_decode(File::get($this->catalogRoot.'/cmspcteckserv-clientes/cms-plugin.json'), true);
+        $manifest['version'] = '1.0.0';
+        File::put($this->catalogRoot.'/cmspcteckserv-clientes/cms-plugin.json', json_encode($manifest));
+        $this->assertSame('cmspcteckserv-clientes-byDL', $repository->find('customers')->directory);
         File::deleteDirectory($this->catalogRoot.'/cmspcteckserv-clientes');
         $this->assertSame('cmspcteckserv-clientes-byDL', $repository->find('customers')->directory);
         $this->assertSame('Clientes', $repository->find('customers')->label);
