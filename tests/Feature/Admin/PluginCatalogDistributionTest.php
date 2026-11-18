@@ -61,6 +61,9 @@ class PluginCatalogDistributionTest extends TestCase
 
     public function test_panel_hides_unused_legacy_records_but_preserves_real_installations_and_data(): void
     {
+        // Este pacote sintético representa uma instalação Composer real.
+        $this->partialMock(\Pcteckserv\CmsCore\Updates\ComposerInstalledPackageReader::class)
+            ->shouldReceive('isAbsent')->with('pcteckserv/cms-customer-integrations')->andReturnFalse();
         config()->set(['cms-core.admin_user.name' => 'Administrador de teste', 'cms-core.admin_user.email' => 'catalog@example.test', 'cms-core.admin_user.password' => 'test-only-password-123']);
         $this->seed(AdminUserSeeder::class);
         $user = \App\Models\User::where('email', 'catalog@example.test')->firstOrFail();

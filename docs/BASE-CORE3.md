@@ -1,3 +1,7 @@
+## Starter 2.1.1 / Core 3.5.1
+
+Inclui a preparação segura de aliases Composer internos e a reconciliação do inventário de plugins. Conserva a base PHP 8.3/Laravel 13.43/Symfony 7.4 já validada. Não aplicar esta base por cima dos sites existentes; cada site mantém o seu Starter.
+
 ## Starter 2.1.0 / Core 3.5.0
 
 Esta distribuição para novos sites usa Laravel 13.43 e Symfony 7.4 com correções de segurança, resolvidos para PHP 8.3.36. A auditoria do lock anterior identificou nove avisos em cinco pacotes; o lock preparado não apresenta avisos conhecidos no Composer em 18/11/2026. Esta manutenção é exclusiva do Starter inicial e não atualiza as dependências das instalações MaxiHome ou CG Limpezas. Consultar `VALIDACAO-2.1.0.md` para os testes e limites.

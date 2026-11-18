@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "317caa6e45ad41c7a611e5ccf9a61ced",
+    "content-hash": "5941f2f715b6aaf662fc37ea11f92400",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -2850,11 +2850,11 @@
         },
         {
             "name": "pcteckserv/cms-core",
-            "version": "v3.5.0",
+            "version": "v3.5.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/pcteckserv/cmspcteckserv-core.git",
-                "reference": "8602767687cbfbb5ea98cd3bb5a57e7a33de6f34"
+                "reference": "d993c7a7726d87b575bf7234ff0d6e2110a73d97"
             },
             "require": {
                 "bacon/bacon-qr-code": "^3.0",
@@ -2890,7 +2890,7 @@
                 "proprietary"
             ],
             "description": "Núcleo administrativo reutilizável do CMS PCTECK.",
-            "time": "2026-11-18T14:18:50+00:00"
+            "time": "2026-11-18T16:25:13+00:00"
         },
         {
             "name": "phpoption/phpoption",
