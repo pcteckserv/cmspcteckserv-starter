@@ -7,7 +7,7 @@ Este guia cobre a instalação numa máquina nova, a execução local e a criaç
 ## 1. Requisitos
 
 - Git e acesso aos repositórios privados da empresa.
-- PHP 8.3 ou superior, compatível com o `composer.lock`, e Composer 2.
+- PHP 8.3 ou superior, compatível com o `composer.lock`, e Composer 2. O lock da linha 2.1 é resolvido para PHP 8.3.36, para conservar compatibilidade com a versão mínima; inclui Laravel 13.40 ou superior e correções Symfony.
 - Extensões PHP exigidas pelas dependências; para SQLite, ativar `pdo_sqlite` e `sqlite3`. Para MySQL, ativar `pdo_mysql`. A compilação de pacotes de instalação também necessita de `zip`.
 - Node.js compatível com o Vite instalado: `^20.19.0 || >=22.12.0`, e npm.
 - SQLite para começar rapidamente, ou uma base de dados MySQL/MariaDB dedicada ao projeto.
@@ -46,7 +46,7 @@ Escolher apenas uma destas alternativas. A partir daqui, seguir os passos de ins
 
 ## 3. Preparar as dependências privadas antes de instalar
 
-O Core é obtido diretamente de `https://github.com/pcteckserv/cmspcteckserv-core.git`. A linha 2.0 deste Starter destina-se a novas instalações Core 3; o lock fixa Core `v3.1.12`. A passagem de um Starter 1.x/Core 2 exige migração preparada e não deve ser feita como atualização comum.
+O Core é obtido diretamente de `https://github.com/pcteckserv/cmspcteckserv-core.git`. A linha 2.1 deste Starter destina-se a novas instalações Core 3; o requisito mínimo é Core `3.5.0`, com lock preparado para essa distribuição. A passagem de um Starter 1.x/Core 2 exige migração preparada e não deve ser feita como atualização comum.
 
 O plugin de formulários pertence ao repositório `https://github.com/pcteckserv/cmspcteckserv-plugins.git`. Antes da primeira instalação, descarregar o catálogo para o caminho relativo esperado pelo Composer:
 

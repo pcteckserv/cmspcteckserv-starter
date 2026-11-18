@@ -1,3 +1,11 @@
+## Starter 2.1.0 / Core 3.5.0
+
+Esta distribuição para novos sites usa Laravel 13.43 e Symfony 7.4 com correções de segurança, resolvidos para PHP 8.3.36. A auditoria do lock anterior identificou nove avisos em cinco pacotes; o lock preparado não apresenta avisos conhecidos no Composer em 18/11/2026. Esta manutenção é exclusiva do Starter inicial e não atualiza as dependências das instalações MaxiHome ou CG Limpezas. Consultar `VALIDACAO-2.1.0.md` para os testes e limites.
+
+A base usa o atualizador central. O Core é instalado pelo repositório publicado; o Starter conserva Composer, lock e vendor nas atualizações de conteúdo. Validar o requisito de Core antes de copiar ficheiros, sem exigir a versão exata do lock da origem. O ecrã comum separa Core, Starter e plugins ativos instalados. Não copiar atualizadores nem criar tabelas de clientes/autenticação nos próximos sites; seguir o AGENTS.md partilhado.
+
+Google Drive usa `/admin/backups/google/callback`, registado uma vez na aplicação OAuth do novo domínio. Configurar o cron `schedule:run` para backups e retenção dos logs. O desenvolvimento não configura o alojamento nem autoriza contas externas.
+
 # Starter 2.0.0 — base para novos sites
 
 - Core: `pcteckserv/cms-core`, linha 3, lock inicial v3.1.12.

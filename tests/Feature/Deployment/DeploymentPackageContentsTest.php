@@ -6,7 +6,6 @@ use App\Services\DeploymentPackageBuilder;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use PDO;
 use RuntimeException;
 use Tests\TestCase;
 use ZipArchive;
@@ -143,18 +142,11 @@ class DeploymentPackageContentsTest extends TestCase
 
     public function test_pacote_de_base_de_dados_nao_inclui_dados_nem_chaves_em_texto_simples(): void
     {
-        $database = new PDO('sqlite::memory:');
+        config()->set('database.connections.deployment_export_test', ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '', 'foreign_key_constraints' => true]);
+        config()->set('database.default', 'deployment_export_test');
+        $database = DB::connection()->getPdo();
         $database->exec('CREATE TABLE options (name TEXT, value TEXT)');
         $database->exec("INSERT INTO options VALUES ('nome', 'conteudo privado de teste')");
-        DB::shouldReceive('connection')->once()->andReturn(new class($database)
-        {
-            public function __construct(private PDO $database) {}
-
-            public function getPdo(): PDO
-            {
-                return $this->database;
-            }
-        });
         config()->set('app.key', 'chave de teste da exportacao');
         $package = app(DeploymentPackageBuilder::class)->build(['database'], 'palavra-passe-de-teste');
         $zip = new ZipArchive;

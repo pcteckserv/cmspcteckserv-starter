@@ -11,7 +11,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        config()->set('cms-core.updates.starter.version', '2.0.0');
+        config()->set('cms-core.updates.starter.version', '2.1.0');
     }
 
     /**
