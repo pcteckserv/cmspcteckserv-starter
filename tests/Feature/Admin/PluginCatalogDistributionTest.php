@@ -41,6 +41,18 @@ class PluginCatalogDistributionTest extends TestCase
         parent::tearDown();
     }
 
+    public function test_site_provider_preserves_the_configured_plugin_catalog(): void
+    {
+        foreach ([null, $this->catalogRoot] as $local) {
+            config(['cms-plugins.local_repository' => $local, 'cms-plugins.repository_url' => 'https://example.test/plugins.git']);
+
+            (new \App\Providers\AppServiceProvider($this->app))->register();
+
+            $this->assertSame($local, config('cms-plugins.local_repository'));
+            $this->assertSame('https://example.test/plugins.git', config('cms-plugins.repository_url'));
+        }
+    }
+
     public function test_catalog_uses_canonical_sources_and_preserves_installation_identity(): void
     {
         $repository = app(PluginRepository::class);

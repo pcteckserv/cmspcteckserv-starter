@@ -1,3 +1,9 @@
+## Starter 2.1.2 / Core 3.5.2
+
+As novas instalações incluem a paginação Bootstrap corrigida da biblioteca de media. O catálogo conserva o repositório configurado, confirmado por um ensaio com Git descartável. A CPL tinha uma substituição específica no seu provider, corrigida no Starter CPL 1.2.2; essa substituição não existe nesta base genérica.
+
+O lock foi resolvido com a tag oficial `v3.5.2`, commit `53ac211f1ad189493c9062452463248825441a01`. A comparação conservou todos os outros pacotes, incluindo Laravel e Formulários. Instalação Composer, build Vite e integridade do Core aprovados numa cópia privada. Suite completa com SQLite e servidor MariaDB descartável para os testes do instalador: 143 testes, 985 asserções, sem falhas, erros ou omitidos. O browser verificou público, login, CSRF, atualizações, catálogo, formulários e assets. Relatórios locais em `output/core352-validation`; nenhuma configuração, dependência ou base dos sites originais foi usada para estes ensaios.
+
 ## Starter 2.1.1 / Core 3.5.1
 
 Inclui a preparação segura de aliases Composer internos e a reconciliação do inventário de plugins. Conserva a base PHP 8.3/Laravel 13.43/Symfony 7.4 já validada. Não aplicar esta base por cima dos sites existentes; cada site mantém o seu Starter.

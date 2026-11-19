@@ -46,7 +46,7 @@ Escolher apenas uma destas alternativas. A partir daqui, seguir os passos de ins
 
 ## 3. Preparar as dependências privadas antes de instalar
 
-O Core é obtido diretamente de `https://github.com/pcteckserv/cmspcteckserv-core.git`. A linha 2.1 deste Starter destina-se a novas instalações Core 3; o requisito mínimo é Core `3.5.1`, com lock preparado para essa distribuição. A passagem de um Starter 1.x/Core 2 exige migração preparada e não deve ser feita como atualização comum.
+O Core é obtido diretamente de `https://github.com/pcteckserv/cmspcteckserv-core.git`. A linha 2.1 deste Starter destina-se a novas instalações Core 3; o requisito mínimo é Core `3.5.2`, com lock preparado para essa distribuição. A passagem de um Starter 1.x/Core 2 exige migração preparada e não deve ser feita como atualização comum.
 
 O plugin de formulários pertence ao repositório `https://github.com/pcteckserv/cmspcteckserv-plugins.git`. Antes da primeira instalação, descarregar o catálogo para o caminho relativo esperado pelo Composer:
 
